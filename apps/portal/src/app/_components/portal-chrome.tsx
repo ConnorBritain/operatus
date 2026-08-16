@@ -13,6 +13,15 @@ export function BrandMark({ compact = false }: { compact?: boolean }) {
   );
 }
 
+export function BrandWordmark({ className = "" }: { className?: string }) {
+  return (
+    <Link className={`brand-wordmark ${className}`.trim()} href="/" aria-label="Operatus home">
+      <span className="brand-wordmark-type">Operatus</span>
+      <span className="brand-wordmark-studs" aria-hidden="true"><i /><i /><i /><i /></span>
+    </Link>
+  );
+}
+
 export function ProfileAvatar({ name, avatarUrl, theme = "cedar", size = "normal" }: {
   name: string;
   avatarUrl?: string | null;

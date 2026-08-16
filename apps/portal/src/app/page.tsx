@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AuthPanel } from "@/app/_components/auth-panel";
 import { AppearanceSync } from "@/app/_components/appearance-sync";
-import { BrandMark, PortalHeader } from "@/app/_components/portal-chrome";
+import { BrandWordmark, PortalHeader } from "@/app/_components/portal-chrome";
 import { PairingPanel } from "@/app/_components/pairing-panel";
 import { NodeControls } from "@/app/_components/node-controls";
 import { LiveUpdater } from "@/app/_components/live-updater";
@@ -29,7 +29,7 @@ function LoginPage() {
   return (
     <main className="login-shell">
       <section className="login-illustration" aria-label="Remote venture operations floor">
-        <BrandMark />
+        <BrandWordmark className="hero-wordmark" />
         <img
           aria-hidden="true"
           className="login-office-art"
@@ -40,25 +40,26 @@ function LoginPage() {
           width="1448"
         />
         <div className="login-copy">
-          <span className="eyebrow">Your ventures, within reach</span>
-          <h1>Run the firm from anywhere.</h1>
-          <p>See each machine as its own branch, follow agent ventures, and send only the narrow commands that branch is prepared to accept.</p>
+          <span className="eyebrow">The firm, in motion</span>
+          <h1>Every branch.<br />One firm.</h1>
+          <p>Watch each machine, follow the work as it moves, and step in from wherever you are.</p>
         </div>
       </section>
       <section className="login-panel">
-        <div className="login-card pixel-panel">
-          <div className="login-card-heading">
-            <div>
+        <div className="login-panel-inner">
+          <div className="login-brand-lockup">
+            <img aria-hidden="true" className="login-brand-mark" height="1024" src="/operatus-mark-transparent.png" width="1024" />
+            <BrandWordmark />
+          </div>
+          <div className="login-card pixel-panel">
+            <div className="login-card-heading">
               <span className="eyebrow">Agent firm control</span>
               <h2>Welcome back</h2>
             </div>
-            <span className="login-card-vignette" aria-hidden="true">
-              <img height="1086" src="/operatus-office-collaboration.webp" width="1448" />
-            </span>
+            <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
+            <AuthPanel />
+            <p className="trust-note">Your browser never receives node credentials or arbitrary shell access. Local machines retain run and Git authority.</p>
           </div>
-          <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
-          <AuthPanel />
-          <p className="trust-note">Your browser never receives node credentials or arbitrary shell access. Local machines retain run and Git authority.</p>
         </div>
       </section>
     </main>

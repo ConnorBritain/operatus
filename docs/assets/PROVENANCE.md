@@ -25,6 +25,14 @@ Restricted Munder/LimeZu tiles, maps, base character sheets, recolors, screensho
 - Final personality pass: restored one small teal plant, one small cream/coral cup, three sparse background sparkles, and four distinct blue, red, yellow, and green status studs on the briefcase while retaining the same single-operator silhouette and excluding subordinate-agent imagery.
 - Production processing: center-cropped, reduced to a 128×128 pixel-art working grid, and scaled to the 1024×1024 master with nearest-neighbor sampling. Platform and web sizes were derived from that master with hard pixel edges.
 
+### Freestanding portal mark
+
+- Runtime asset: `apps/portal/public/operatus-mark-transparent.png` (1024×1024).
+- SHA-256: `b5012602a38cd876ba84c0cce43f3d093006b99882a1ed68154612c16e23116c`.
+- Source: the adopted `apps/portal/public/operatus-icon.png`; no generative restyling was accepted.
+- Production processing: the uniform warm-cream border color was sampled and removed with the image-generation skill's chroma-key helper, using a soft alpha edge and no despill so the coral gem, teal plant, cream cup, sparkles, and four status colors remain faithful to the canonical icon.
+- Intended use: a borderless identity mark over the hosted sign-in surface. The original opaque icon remains authoritative for dock, favicon, PWA, and social uses.
+
 ## Hosted portal collaboration scene — 2026-08-16
 
 - Runtime asset: `apps/portal/public/operatus-office-collaboration.webp` (1448×1086).
