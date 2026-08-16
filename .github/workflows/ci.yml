@@ -25,10 +25,22 @@ jobs:
           cache: npm
       - name: Install native and JavaScript dependencies
         run: npm ci
+      - name: Install portal dependencies
+        run: npm ci --prefix apps/portal
       - name: Typecheck main, preload, and renderer
         run: npm run typecheck
       - name: Verify deterministic Gauntlet protocol
         run: npm run test:gauntlet
+      - name: Verify hosted identity portal
+        run: |
+          npm --prefix apps/portal test -- --run
+          npm --prefix apps/portal run typecheck
+          npm --prefix apps/portal run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          SUPABASE_SECRET_KEY: ci_server_secret_placeholder
+          ATELIER_NODE_TOKEN_PEPPER: ci-only-placeholder-that-is-not-used-at-runtime
       - name: Verify retained runtime seams
         run: npm run test:focused
       - name: Build Electron development assets

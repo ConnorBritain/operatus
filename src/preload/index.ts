@@ -2,6 +2,12 @@ import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'ele
 import type { AgentProvider } from '../shared/agentProvider';
 import type { HireManifest } from '../shared/hire';
 import type { BranchProfile } from '../shared/branchIdentity';
+import type {
+  RemoteNodeConfigureInput,
+  RemoteNodePairInput,
+  RemoteNodeStatus
+} from '../shared/remoteNode';
+export type { RemoteNodeConfigureInput, RemoteNodePairInput, RemoteNodeStatus } from '../shared/remoteNode';
 export type { HireManifest } from '../shared/hire';
 import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 export type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
@@ -797,6 +803,18 @@ const api = {
     const listener = (_e: IpcRendererEvent, snapshot: GauntletRunSnapshot) => cb(snapshot);
     ipcRenderer.on('gauntlet:changed', listener);
     return () => ipcRenderer.removeListener('gauntlet:changed', listener);
+  },
+  remoteNodeStatus: (): Promise<RemoteNodeStatus> => ipcRenderer.invoke('remote-node:status'),
+  remoteNodeConfigure: (input: RemoteNodeConfigureInput): Promise<RemoteNodeStatus> =>
+    ipcRenderer.invoke('remote-node:configure', input),
+  remoteNodePair: (input: RemoteNodePairInput): Promise<RemoteNodeStatus> =>
+    ipcRenderer.invoke('remote-node:pair', input),
+  remoteNodeDisconnect: (): Promise<RemoteNodeStatus> => ipcRenderer.invoke('remote-node:disconnect'),
+  remoteNodeSync: (): Promise<RemoteNodeStatus> => ipcRenderer.invoke('remote-node:sync'),
+  onRemoteNodeChanged: (cb: (status: RemoteNodeStatus) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, status: RemoteNodeStatus) => cb(status);
+    ipcRenderer.on('remote-node:changed', listener);
+    return () => ipcRenderer.removeListener('remote-node:changed', listener);
   },
   skillSources: (): Promise<SkillDepotSource[]> => ipcRenderer.invoke('skills:sources'),
   skillSaveSources: (sources: SkillDepotSource[]): Promise<SkillDepotSource[]> =>

@@ -36,6 +36,7 @@ The loop ends as `passed`, `human_required`, `cancelled`, or an explicit infrast
 - A Runs surface showing the contract, phase, exact artifact, checks, findings, acknowledgment, repairs, skills, and events.
 - An original, redistributable Atelier operations floor: a warm, light research-studio reskin that preserves the useful floor/terminal interaction model.
 - Twelve named branch identities, stored per workspace, so machines and compute locations remain visually distinct at a glance.
+- A responsive hosted portal with Supabase identity, branch/machine discovery, one-time pairing, redacted run views, and narrow audited commands.
 - Updater and analytics destinations disabled by default until Atelier-owned services exist.
 
 The candidate branch is always left unmerged and unpushed for a human to inspect.
@@ -87,15 +88,16 @@ Role commands are schema-validated, size-bounded, and scoped by per-launch token
 
 Synchronization is manual and pinned. Atelier never runs a skill repository’s installers or hooks. It rejects path escapes and symlinks, hashes complete skill directories, requires explicit precedence for duplicate names, and materializes the locked result read-only into provider-specific agent homes. See [Skill Depot](docs/SKILL_DEPOT.md).
 
-## Remote viewing direction
+## Remote studio
 
-A phone-friendly portal is feasible without turning the desktop into an exposed remote shell. The desktop remains run authority; a future paired client receives redacted snapshots/events and submits narrow, revalidated commands. For a personal fleet, the preferred first path is a loopback-only gateway exposed deliberately through Tailscale Serve and reached by MagicDNS from the responsive PWA. A hosted encrypted relay remains optional for push, offline delivery, and non-tailnet workspaces. See [remote floor architecture](docs/architecture/remote-portal.md).
+The responsive portal is deployed at [atelier-pidgeon.vercel.app](https://atelier-pidgeon.vercel.app). Supabase identity binds users to workspaces, branches, and paired machines. Each desktop node makes outbound HTTPS requests, publishes a least-information run projection, and revalidates expiring commands against local state and exact run versions. Local SQLite and Git remain authoritative, and there is no exposed shell or inbound daemon port. See the [operations guide](docs/HOSTED_CONTROL_PLANE.md) and [remote floor architecture](docs/architecture/remote-portal.md).
 
 ## Architecture and provenance
 
 - [Gauntlet operations guide](docs/GAUNTLET.md)
 - [Architecture synthesis](docs/architecture/gauntlet-synthesis.md)
 - [Roadmap interoperability](docs/architecture/roadmap-interoperability.md)
+- [Hosted control plane operations](docs/HOSTED_CONTROL_PLANE.md)
 - [Upstream policy](UPSTREAM.md)
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Visual asset provenance](docs/assets/PROVENANCE.md)

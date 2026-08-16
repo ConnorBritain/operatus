@@ -1,0 +1,25 @@
+# The linked Vercel project builds only the responsive portal. The Electron
+# application, local build artifacts, vendored registries, and native modules
+# must never be uploaded with a portal deployment.
+/node_modules/
+/dist/
+/out/
+/.git/
+/vendor/
+/src/
+/build/
+/docs/
+/hive/
+/test/
+/resources/
+/tools/
+/scripts/
+/supabase/
+/landing-remotion/
+/blog/
+/seo/
+/prototypes/
+/apps/portal/.next/
+/apps/portal/node_modules/
+/apps/portal/.env.local
+/apps/portal/.vercel/

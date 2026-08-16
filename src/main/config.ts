@@ -13,6 +13,7 @@ import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 import type { BranchProfile } from '../shared/branchIdentity';
+import type { RemoteNodeConfig } from '../shared/remoteNode';
 import {
   DEFAULT_CONTEXT_TRIGGER,
   DEFAULT_ORG_TRIGGER,
@@ -303,6 +304,9 @@ export interface HarnessConfig {
   /** Visual identities keyed by harness-home path. This makes workspace/device
    *  branches immediately distinguishable without changing protocol behavior. */
   branchProfiles?: Record<string, BranchProfile>;
+  /** Outbound-only connection to the hosted Atelier portal. The node bearer
+   *  token is never stored here; it lives encrypted in Electron safeStorage. */
+  remoteNode?: RemoteNodeConfig;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn (config-injection or proxy
    *  upstream). API KEYS are NOT stored here — they live write-only in the secret

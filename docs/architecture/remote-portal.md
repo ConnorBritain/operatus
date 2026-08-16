@@ -32,9 +32,11 @@ It must not grant arbitrary shell access, merge, push, change the frozen bar, in
 - Read-only observation is the default remote grant.
 - No unauthenticated LAN listener or automatic public tunnel.
 
-## Milestone-one seam
+## Shipped hosted foundation
 
-The Runs renderer consumes shared snapshots and ordered events rather than importing SQLite or main-process objects. `src/main/gauntlet/remoteProjection.ts` provides an explicit, least-information projection that removes local paths, authority tokens, check commands, event reasons, and human text unless an independent sharing policy enables the relevant field. Remote transport interfaces remain dormant, but schemas include stable run/event IDs and causation data so the desktop UI is already the first remote-compatible client.
+The Runs renderer consumes shared snapshots and ordered events rather than importing SQLite or main-process objects. `src/main/gauntlet/remoteProjection.ts` provides an explicit, least-information projection that removes local paths, authority tokens, check commands, event reasons, and human text unless an independent sharing policy enables the relevant field.
+
+The hosted foundation is now live: Supabase Auth and RLS provide user/workspace identity; Postgres stores branches, paired nodes, redacted projections, narrow commands, and audit events; the responsive Vercel portal provides desktop/mobile views; and Atelier's outbound-only node connector pairs with a short-lived code, stores its token through OS encryption, syncs every 15 seconds, and locally revalidates commands. `message_conductor` and `cancel_run` are active. Pause and human-gate operations remain reserved until their local state-machine semantics are implemented.
 
 ## Multiple machines and office branches
 
@@ -97,11 +99,11 @@ For a personal fleet of continuously running Windows and macOS nodes, the refere
 |---|---|
 | Vercel-hosted Next.js/PWA | responsive office, machine switcher, Runs views, pairing, settings |
 | Postgres | users, workspaces, memberships, devices, nodes, durable command/audit records |
-| Redis | ephemeral presence, channels, command fanout, rate limits, reconnect coordination |
-| Vercel WebSocket/HTTP functions (public beta) | authenticated transport between browsers and outbound node connections |
+| Supabase Realtime | authenticated browser updates for nodes, projections, and commands |
+| Vercel HTTP functions | authenticated browser and outbound-node APIs |
 | Atelier node daemon | local provider processes, Git repositories, SQLite authority, command revalidation |
 
-Vercel added native WebSocket support in public beta in June 2026. A connection is pinned to one function only for that function's bounded lifetime, and later connections are not guaranteed to reach the same instance. Atelier therefore treats WebSocket connections as transport leases, not durable presence. Nodes and clients reconnect with bounded exponential backoff, authenticate again, reload their channel state, and resume from the last acknowledged sequence. Function instance memory is never used for membership, rooms, pending commands, or run authority. Durable coordination lives in Postgres/Redis, and the relay may later move to a stateful service without changing the client/node protocol.
+The first release deliberately uses short outbound HTTPS polling for nodes and Supabase Realtime for signed-in browser updates. Function instance memory is never used for membership, presence, pending commands, or run authority. A future streaming transport can replace polling without changing the durable schema or local validation boundary.
 
 The daemon should run at login or as an operating-system service and maintain only outbound connections. A work laptop may use the browser client without installing a daemon. The Mac desktop may operate locally even when the hosted portal, identity provider, or relay is unavailable.
 

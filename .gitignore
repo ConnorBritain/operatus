@@ -8,6 +8,10 @@ dist/
 .env
 .env.local
 .env.signing
+.vercel/
+apps/portal/.next/
+apps/portal/node_modules/
+supabase/.temp/
 .gstack/
 
 # signing / notarization secrets — NEVER commit these

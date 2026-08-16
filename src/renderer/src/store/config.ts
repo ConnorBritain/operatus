@@ -13,6 +13,7 @@ import type {
   WebhookTrigger
 } from '@shared/triggers';
 import type { BranchProfile } from '@shared/branchIdentity';
+import type { RemoteNodeConfig } from '@shared/remoteNode';
 
 export {
   AGENT_PROVIDER_PRESETS,
@@ -121,6 +122,8 @@ export interface HarnessConfig {
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
   /** Visual branch identity keyed by harness-home path. */
   branchProfiles?: Record<string, BranchProfile>;
+  /** Hosted portal metadata only; the machine token remains main-process-only. */
+  remoteNode?: RemoteNodeConfig;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn. API KEYS are NOT stored here —
    *  they live write-only in the secret broker. */

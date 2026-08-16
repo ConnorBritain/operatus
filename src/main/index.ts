@@ -32,6 +32,7 @@ import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
 import { LocalGauntletBackend, type PreparedLaunch } from './gauntlet/localBackend';
 import { GauntletControlServer } from './gauntlet/controlServer';
+import { AtelierRemoteNode, REMOTE_NODE_SECRET_REF } from './remoteNode';
 import { buildConductorAcknowledgmentPrompt, buildConductorOrientationPrompt } from './gauntlet/prompts';
 import type {
   GauntletRunSnapshot,
@@ -39,6 +40,7 @@ import type {
   SkillDepotSource,
   StartGauntletInput
 } from '../shared/gauntlet';
+import type { RemoteNodeConfigureInput, RemoteNodePairInput } from '../shared/remoteNode';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
 import { listIssues, listCIRuns } from './github';
 import { SlackWebhookServer, SlackReplyServer, postSlackReply, type SlackEventFile } from './slack';
@@ -303,6 +305,7 @@ const reflector = new MemoryReflector(
 const persist = new PersistStore();
 let gauntletBackend: LocalGauntletBackend | null = null;
 let gauntletControl: GauntletControlServer | null = null;
+let remoteNode: AtelierRemoteNode | null = null;
 const advancingGauntlets = new Set<string>();
 const orientedGauntletPrompts = new Set<string>();
 const acknowledgedReportPrompts = new Set<string>();
@@ -337,6 +340,7 @@ function publishGauntlet(snapshot: GauntletRunSnapshot): GauntletRunSnapshot {
       scheduledGauntletReaps.delete(launch.id);
     }, 750);
   }
+  remoteNode?.scheduleSync();
   return snapshot;
 }
 
@@ -3498,6 +3502,29 @@ ipcMain.handle('gauntlet:cancel', (_evt, runId: unknown, reason: unknown) => {
   return publishGauntlet(gauntlet().cancel(runId, typeof reason === 'string' ? reason : 'Cancelled by human'));
 });
 
+// ─── IPC: outbound-only hosted portal connection ──────────────────────────
+ipcMain.handle('remote-node:status', () => remoteNode?.status() ?? {
+  state: 'disabled', enabled: false, paired: false,
+  portalUrl: 'https://atelier-pidgeon.vercel.app', nodeId: null,
+  nodeName: '', lastSyncAt: null, error: 'Remote node service is not ready'
+});
+ipcMain.handle('remote-node:configure', (_evt, payload: unknown) => {
+  if (!remoteNode || !payload || typeof payload !== 'object') throw new Error('Remote node service is not ready');
+  return remoteNode.configure(payload as RemoteNodeConfigureInput);
+});
+ipcMain.handle('remote-node:pair', async (_evt, payload: unknown) => {
+  if (!remoteNode || !payload || typeof payload !== 'object') throw new Error('Remote node service is not ready');
+  return remoteNode.pair(payload as RemoteNodePairInput);
+});
+ipcMain.handle('remote-node:disconnect', () => {
+  if (!remoteNode) throw new Error('Remote node service is not ready');
+  return remoteNode.disconnect();
+});
+ipcMain.handle('remote-node:sync', async () => {
+  if (!remoteNode) throw new Error('Remote node service is not ready');
+  return remoteNode.syncNow();
+});
+
 ipcMain.handle('skills:sources', () => gauntlet().skills.listSources());
 ipcMain.handle('skills:saveSources', (_evt, payload: unknown) => {
   if (!Array.isArray(payload)) throw new Error('sources must be an array');
@@ -3521,6 +3548,7 @@ function teardownAndQuit(): void {
   try { clearMissionTimers(); } catch (e) { console.error('[quit] clearMissionTimers:', e); }
   try { clearContextTimers(); } catch (e) { console.error('[quit] clearContextTimers:', e); }
   try { stopGauntletWatchdog(); } catch (e) { console.error('[quit] stopGauntletWatchdog:', e); }
+  try { remoteNode?.stop(); } catch (e) { console.error('[quit] remoteNode.stop:', e); }
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[quit] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[quit] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[quit] broker.stop:', e); }
@@ -3582,6 +3610,7 @@ ipcMain.handle('app:resetAll', () => {
   try { clearMissionTimers(); } catch (e) { console.error('[reset] clearMissionTimers:', e); }
   try { clearContextTimers(); } catch (e) { console.error('[reset] clearContextTimers:', e); }
   try { stopGauntletWatchdog(); } catch (e) { console.error('[reset] stopGauntletWatchdog:', e); }
+  try { remoteNode?.stop(); } catch (e) { console.error('[reset] remoteNode.stop:', e); }
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[reset] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[reset] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[reset] broker.stop:', e); }
@@ -4895,6 +4924,35 @@ app.whenReady().then(async () => {
   initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
+  remoteNode = new AtelierRemoteNode({
+    appVersion: () => app.getVersion(),
+    readConfig: () => readConfig().remoteNode,
+    writeConfig: (remoteConfig) => { writeConfig({ remoteNode: remoteConfig }); },
+    getToken: () => integrations.getSecret(REMOTE_NODE_SECRET_REF),
+    setToken: (token) => integrations.setSecret(REMOTE_NODE_SECRET_REF, token),
+    deleteToken: () => integrations.deleteSecret(REMOTE_NODE_SECRET_REF),
+    snapshots: () => gauntletBackend
+      ? gauntletBackend.list().map((run) => gauntletBackend!.status(run.id))
+      : [],
+    cancelRun: (runId, reason) => publishGauntlet(gauntlet().cancel(runId, reason)),
+    messageConductor: (message, runId) => {
+      if (!hive.enabled()) throw new Error('Conductor is not configured on this machine');
+      const conductorId = hive.registry().godId ?? 'god';
+      hive.send({
+        id: `remote-${Date.now()}-${randomBytes(4).toString('hex')}`,
+        to: conductorId,
+        conversation: runId ? `gauntlet-${runId}` : `remote-${Date.now()}`,
+        act: 'request',
+        subject: runId ? `Remote note · ${runId.slice(0, 8)}` : 'Remote note',
+        body: message,
+        requires_reply: false
+      }, 'authenticated-operator');
+    },
+    onStatus: (status) => {
+      for (const win of allWindows) if (!win.isDestroyed()) win.webContents.send('remote-node:changed', status);
+    }
+  });
+  remoteNode.start();
   if (gauntletBackend) {
     for (const snapshot of gauntletBackend.reconcileAfterRestart()) {
       publishGauntlet(snapshot);
