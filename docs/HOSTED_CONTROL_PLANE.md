@@ -33,12 +33,14 @@ npm --prefix apps/portal run dev
 
 ## Database changes
 
-Source-controlled SQL lives in `supabase/migrations`. Apply migrations through the Supabase CLI or Management API, then ensure the exact timestamp is present in `supabase_migrations.schema_migrations`. Run Supabase's security advisor after every schema or policy change. All browser-visible tables must retain RLS and explicit grants.
+Source-controlled SQL lives in `supabase/migrations`. Apply migrations through the Supabase CLI or Management API, then ensure the exact timestamp is present in `supabase_migrations.schema_migrations`. Run Supabase's security advisor after every schema or policy change. All browser-visible tables must retain RLS and explicit grants. Default privileges for future public and private objects are revoked from API roles, so every new table, sequence, or function must be granted deliberately in the migration that creates it.
 
 The initial production baseline consists of:
 
 - `20260816123849_identity_control_plane.sql`
 - `20260816130021_secure_rls_event_trigger.sql`
+- `20260816135055_lock_down_future_api_objects.sql`
+- `20260816135144_revoke_remaining_future_object_privileges.sql`
 
 ## OAuth
 
