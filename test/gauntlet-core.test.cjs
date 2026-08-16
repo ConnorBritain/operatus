@@ -41,7 +41,7 @@ function run(now = 100) {
     id: 'run-1',
     repository: '/tmp/repo',
     objective: 'test objective',
-    branch: 'atelier/gauntlet/run-1',
+    branch: 'ventura/gauntlet/run-1',
     baseSha: BASE,
     now,
     limits: { maxRepairRounds: 1 }
@@ -61,7 +61,7 @@ function contract(at = 101) {
 test('run creation rejects empty objectives and unsafe runtime limits', () => {
   const base = {
     id: 'invalid-run', repository: '/tmp/repo', objective: 'bounded work',
-    branch: 'atelier/gauntlet/invalid-run', baseSha: BASE, now: 100
+    branch: 'ventura/gauntlet/invalid-run', baseSha: BASE, now: 100
   };
   assert.throws(() => createGauntletRun({ ...base, objective: '   ' }), /objective is required/);
   assert.throws(() => createGauntletRun({ ...base, limits: { maxRepairRounds: -1 } }), /within 0\.\.20/);
@@ -148,7 +148,7 @@ test('bounded repair creates a new artifact and escalates after the configured l
 });
 
 test('SQLite store rejects stale writers and reconstructs a complete snapshot', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atelier-gauntlet-store-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ventura-gauntlet-store-'));
   const store = new GauntletStore(join(dir, 'gauntlet.db'));
   store.open();
   const initial = run();
@@ -167,11 +167,11 @@ test('primitive registry resolves exact source commit and composes both engineer
   assert.deepEqual(resolved.receipts.map((receipt) => receipt.primitiveId), ['verification-critic', 'architecture-reviewer']);
   assert.ok(resolved.receipts.every((receipt) => receipt.sourceCommit.length === 40));
   assert.ok(resolved.receipts.every((receipt) => receipt.enforcement === 'enforced'));
-  assert.match(resolved.prompt, /Atelier General Engineering Critic/);
+  assert.match(resolved.prompt, /Ventura General Engineering Critic/);
 });
 
 test('packaged primitive tree resolves against the committed pin without Git metadata', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atelier-primitives-packaged-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ventura-primitives-packaged-'));
   const source = join(__dirname, '..', 'vendor', 'agent-primitives');
   const packaged = join(dir, 'agent-primitives');
   cpSync(source, packaged, { recursive: true, filter: (path) => !path.endsWith('/.git') });
@@ -181,14 +181,14 @@ test('packaged primitive tree resolves against the committed pin without Git met
 });
 
 test('explicit local primitive override receipts its own exact Git commit without changing the published pin', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atelier-primitives-override-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ventura-primitives-override-'));
   const source = join(__dirname, '..', 'vendor', 'agent-primitives');
   const checkout = join(dir, 'override');
   cpSync(source, checkout, { recursive: true, filter: (path) => !path.endsWith('/.git') });
   const { execFileSync } = require('node:child_process');
   execFileSync('git', ['init', '-b', 'main', checkout]);
-  execFileSync('git', ['-C', checkout, 'config', 'user.name', 'Atelier Test']);
-  execFileSync('git', ['-C', checkout, 'config', 'user.email', 'atelier@example.invalid']);
+  execFileSync('git', ['-C', checkout, 'config', 'user.name', 'Ventura Test']);
+  execFileSync('git', ['-C', checkout, 'config', 'user.email', 'ventura@example.invalid']);
   execFileSync('git', ['-C', checkout, 'add', '.']);
   execFileSync('git', ['-C', checkout, 'commit', '-m', 'local override']);
   const head = execFileSync('git', ['-C', checkout, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
@@ -199,7 +199,7 @@ test('explicit local primitive override receipts its own exact Git commit withou
 });
 
 test('local control socket rejects wrong authority and accepts a bounded Conductor command', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'atelier-control-'));
+  const dir = mkdtempSync(join(tmpdir(), 'ventura-control-'));
   const snapshot = { run: { id: 'run-1', status: 'awaiting_implementation' } };
   const backend = {
     freeze(runId, payload) {
@@ -233,7 +233,7 @@ test('remote projection is redacted by default and never exposes authority mater
       status: 'created', createdAt: 101
     }],
     artifacts: [{
-      id: 'artifact-1', runId: 'run-1', sha: ARTIFACT_1, parentSha: BASE, branch: 'atelier/gauntlet/run-1',
+      id: 'artifact-1', runId: 'run-1', sha: ARTIFACT_1, parentSha: BASE, branch: 'ventura/gauntlet/run-1',
       producedByLaunchId: 'launch-1', diffSummary: 'private diff',
       checkReceipts: [{ checkId: 'test', command: 'private command', exitCode: 0, timedOut: false, durationMs: 1, output: 'private output' }], createdAt: 102
     }],

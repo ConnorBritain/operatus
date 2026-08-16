@@ -25,6 +25,15 @@ export type Database = {
         created_at: string;
         updated_at: string;
       }>;
+      user_preferences: Table<{
+        user_id: string;
+        appearance: AppearancePreference;
+        avatar_theme: BranchTheme;
+        machine_scope: MachineScope;
+        density: "comfortable" | "compact";
+        created_at: string;
+        updated_at: string;
+      }>;
       workspaces: Table<{
         id: string;
         name: string;
@@ -51,6 +60,14 @@ export type Database = {
         created_at: string;
         updated_at: string;
       }>;
+      branch_preferences: Table<{
+        user_id: string;
+        branch_id: string;
+        workspace_id: string;
+        favorite: boolean;
+        created_at: string;
+        updated_at: string;
+      }>;
       client_devices: Table<{
         id: string;
         user_id: string;
@@ -70,7 +87,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      enroll_atelier_node: {
+      enroll_ventura_node: {
         Args: {
           invitation_code_hash: string;
           node_token_hash: string;
@@ -84,7 +101,7 @@ export type Database = {
         };
         Returns: string;
       };
-      claim_atelier_commands: {
+      claim_ventura_commands: {
         Args: { node_token_hash: string; command_limit?: number };
         Returns: Array<{
           id: string;
@@ -96,7 +113,7 @@ export type Database = {
           run_projection_id: string | null;
         }>;
       };
-      revoke_atelier_node: {
+      revoke_ventura_node: {
         Args: {
           target_node_id: string;
           actor_user_id: string;
@@ -113,6 +130,9 @@ export type Database = {
 export type BranchTheme =
   | "cedar" | "harbor" | "saffron" | "juniper" | "clay" | "iris"
   | "moss" | "ember" | "coast" | "orchid" | "slate" | "sol";
+
+export type AppearancePreference = "system" | "light" | "dark";
+export type MachineScope = "all" | "online" | "favorites";
 
 export type NodeRow = {
   id: string;

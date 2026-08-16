@@ -1,10 +1,10 @@
 # Roadmap interoperability
 
-Atelier milestone one implements `LocalGauntletBackend`. Its authority is transactional SQLite and exact local Git commits. A future `RoadmapGauntletBackend` will implement the same domain operations while delegating authority, actor identity, and idempotency to Roadmap and GitHub.
+Ventura milestone one implements `LocalGauntletBackend`. Its authority is transactional SQLite and exact local Git commits. A future `RoadmapGauntletBackend` will implement the same domain operations while delegating authority, actor identity, and idempotency to Roadmap and GitHub.
 
 ## Canonical operations
 
-| Atelier backend method | Protocol operation | Roadmap mapping direction |
+| Ventura backend method | Protocol operation | Roadmap mapping direction |
 |---|---|---|
 | `start` | `gauntlet_start` | create/bind a Roadmap run and protected artifact context |
 | `status` | `gauntlet_status` | reconcile the authoritative Roadmap ledger and GitHub artifact |

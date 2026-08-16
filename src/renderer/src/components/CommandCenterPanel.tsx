@@ -171,7 +171,7 @@ export function CommandCenterPanel({ agent, fullscreen = false }: { agent: Agent
           <div style={{
             fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px', color: 'var(--cth-ink-900)',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
-          }}>ATELIER CONDUCTOR</div>
+          }}>VENTURA CONDUCTOR</div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 1, minWidth: 0 }}>
             <PixelBadge status={agent.status} />
             <span style={{

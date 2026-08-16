@@ -70,3 +70,29 @@ test("node revocation is atomic and callable only by the service role", () => {
   assert.match(revocation, /revoke all on function public\.revoke_atelier_node[\s\S]+from public, anon, authenticated/);
   assert.match(revocation, /grant execute on function public\.revoke_atelier_node[\s\S]+to service_role/);
 });
+
+test("the callable control-plane API is renamed without rewriting applied history", () => {
+  const rename = readMigration("_rename_ventura_rpcs.sql");
+
+  for (const operation of ["enroll", "claim", "revoke"]) {
+    assert.match(rename, new RegExp(`rename to ${operation}_ventura_(?:node|commands)`));
+  }
+  assert.match(rename, /revoke all on function public\.enroll_ventura_node[\s\S]+from public, anon, authenticated/);
+  assert.match(rename, /grant execute on function public\.claim_ventura_commands[\s\S]+to service_role/);
+  assert.match(rename, /grant execute on function public\.revoke_ventura_node[\s\S]+to service_role/);
+});
+
+test("personal preferences are self-scoped and a branch has one active machine", () => {
+  const preferences = readMigration("_profile_branch_preferences.sql");
+
+  for (const table of ["user_preferences", "branch_preferences"]) {
+    assert.match(preferences, new RegExp(`alter table public\\.${table} enable row level security`));
+  }
+  assert.match(preferences, /user_preferences_select_self[\s\S]+auth\.uid\(\)[\s\S]+user_id/);
+  assert.match(preferences, /branch_preferences_select_self[\s\S]+is_workspace_member/);
+  assert.match(preferences, /create unique index nodes_one_active_per_branch_idx[\s\S]+on public\.nodes\(branch_id\)[\s\S]+where revoked_at is null/);
+  assert.match(preferences, /grant select, insert, update on public\.user_preferences to authenticated/);
+  assert.match(preferences, /grant select, insert, update, delete on public\.branch_preferences to authenticated/);
+  assert.match(preferences, /left\(account_name \|\| '''s company'/);
+  assert.doesNotMatch(preferences, /raw_user_meta_data[\s\S]+authorization/);
+});

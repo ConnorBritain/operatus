@@ -42,7 +42,7 @@ jobs:
       - name: Compile
         run: npm run build
       - name: Verify product identity and distributable assets
-        run: npm run check:atelier-assets
+        run: npm run check:ventura-assets
       - name: Create an unsigned unpacked application
         run: npx electron-builder ${{ matrix.args }} --publish never
         env:

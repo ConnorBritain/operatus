@@ -1,4 +1,4 @@
-// Atelier floor operators — roster metadata + sprite frames.
+// Ventura floor operators — roster metadata + sprite frames.
 //
 // Both the static portraits (cards / picker) and the in-scene walking sprites are
 // now fully custom-drawn from the same per-character recipes in portraitArt.ts:

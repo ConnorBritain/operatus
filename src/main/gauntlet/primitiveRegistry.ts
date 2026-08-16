@@ -67,13 +67,13 @@ export class PrimitiveRegistry {
     const primitives = ['verification-critic', 'architecture-reviewer'].map((id) => this.resolve(id));
     const enforcement: EnforcementLevel = provider === 'codex' ? 'enforced' : 'partial';
     const prompt = [
-      '# Atelier General Engineering Critic',
+      '# Ventura General Engineering Critic',
       '',
       'You are a fresh, independent, read-only critic. You did not implement this artifact.',
-      'Evaluate the exact commit and frozen bar supplied by Atelier. Inspect the real diff, tests, logs, and application evidence.',
+      'Evaluate the exact commit and frozen bar supplied by Ventura. Inspect the real diff, tests, logs, and application evidence.',
       'Cover functional correctness, edge cases, regression risk, repository conventions, maintainability, and simpler/safer alternatives.',
       'Do not edit, commit, repair, expand the frozen bar, or accept an implementer-authored success narrative.',
-      'Return Atelier structured JSON only; the Conductor, not you, is final authority.',
+      'Return Ventura structured JSON only; the Conductor, not you, is final authority.',
       '',
       ...primitives.flatMap((primitive) => [
         `## Typed primitive: ${primitive.id}`,

@@ -39,7 +39,7 @@ export async function DELETE(request: NextRequest, { params }: Context) {
     );
   }
 
-  const { data, error } = await admin.rpc("revoke_atelier_node", {
+  const { data, error } = await admin.rpc("revoke_ventura_node", {
     target_node_id: nodeId,
     actor_user_id: userId,
     actor_device_id: device.deviceId,

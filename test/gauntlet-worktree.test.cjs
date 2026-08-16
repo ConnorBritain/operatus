@@ -15,12 +15,12 @@ function git(cwd, args) {
 }
 
 test('candidate and critic worktrees preserve exact immutable artifact identity', () => {
-  const root = mkdtempSync(join(tmpdir(), 'atelier-gauntlet-git-'));
+  const root = mkdtempSync(join(tmpdir(), 'ventura-gauntlet-git-'));
   const repo = join(root, 'repo');
   const worktrees = join(root, 'worktrees');
   execFileSync('git', ['init', '-b', 'main', repo]);
-  git(repo, ['config', 'user.name', 'Atelier Test']);
-  git(repo, ['config', 'user.email', 'atelier@example.invalid']);
+  git(repo, ['config', 'user.name', 'Ventura Test']);
+  git(repo, ['config', 'user.email', 'ventura@example.invalid']);
   writeFileSync(join(repo, 'value.txt'), 'one\n');
   git(repo, ['add', 'value.txt']);
   git(repo, ['commit', '-m', 'base']);
@@ -31,7 +31,7 @@ test('candidate and critic worktrees preserve exact immutable artifact identity'
     repository: repo,
     runId: 'run-1',
     launchId: 'impl-1',
-    branch: 'atelier/gauntlet/run-1',
+    branch: 'ventura/gauntlet/run-1',
     expectedSha: base
   });
   writeFileSync(join(candidate.path, 'value.txt'), 'two\n');
@@ -50,7 +50,7 @@ test('candidate and critic worktrees preserve exact immutable artifact identity'
 });
 
 test('frozen checks capture bounded timeout evidence', async () => {
-  const root = mkdtempSync(join(tmpdir(), 'atelier-gauntlet-check-'));
+  const root = mkdtempSync(join(tmpdir(), 'ventura-gauntlet-check-'));
   const [receipt] = await runFrozenChecks(root, [{
     id: 'bounded-timeout',
     name: 'bounded timeout',

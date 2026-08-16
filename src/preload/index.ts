@@ -299,7 +299,7 @@ export interface HarnessConfig {
   /** Opt-in strong keep-alive (prevent-display-sleep). Mirrors main + renderer
    *  HarnessConfig so updateConfig({ strongKeepalive }) is typed across the bridge. */
   strongKeepalive?: boolean;
-  /** Auto-update from Atelier-owned GitHub releases (default OFF; Settings → General). */
+  /** Auto-update from Ventura-owned GitHub releases (default OFF; Settings → General). */
   autoUpdate?: boolean;
   /** Anonymous product analytics (default OFF, explicit opt-in; see TELEMETRY.md).
    *  Mirrors main + renderer HarnessConfig. */
@@ -792,7 +792,7 @@ const api = {
   historySearch: (query: string, limit?: number): Promise<CommandHistoryEntry[]> =>
     ipcRenderer.invoke('history:search', query, limit),
 
-  // ─── Atelier Gauntlet Runs (SQLite authority; transport-neutral snapshots) ─
+  // ─── Ventura Gauntlet Runs (SQLite authority; transport-neutral snapshots) ─
   gauntletList: (): Promise<GauntletRun[]> => ipcRenderer.invoke('gauntlet:list'),
   gauntletGet: (runId: string): Promise<GauntletRunSnapshot> => ipcRenderer.invoke('gauntlet:get', runId),
   gauntletStart: (input: StartGauntletInput & { assignments?: RoleSkillAssignment[] }): Promise<GauntletRunSnapshot> =>
@@ -882,7 +882,7 @@ const api = {
   },
 
   // ─── Shareable hires (deep link / file import) ────────────────────────────
-  /** Fired when a validated hire manifest arrives via the atelier://
+  /** Fired when a validated hire manifest arrives via the ventura://
    *  deep link. The renderer opens the Add-Agent modal pre-filled — import
    *  never spawns anything by itself. */
   onHireImport: (cb: (manifest: HireManifest) => void): (() => void) => {

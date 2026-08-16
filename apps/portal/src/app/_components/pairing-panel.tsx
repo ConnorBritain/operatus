@@ -26,7 +26,7 @@ export function PairingPanel({ workspaceId, branchId }: { workspaceId: string; b
       <div className="pairing-ticket" role="status">
         <span className="eyebrow">One-time machine code</span>
         <strong>{pairing.code}</strong>
-        <p>Enter this in Atelier on the machine. It expires at {new Date(pairing.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.</p>
+        <p>Enter this in Ventura on the machine. It expires at {new Date(pairing.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}.</p>
         <button className="text-button" onClick={() => setPairing(null)}>Done</button>
       </div>
     );

@@ -1,4 +1,4 @@
-# Contributing to Atelier
+# Contributing to Ventura
 
 Thanks for your interest! This is an early prototype, so there's a lot of surface
 area and plenty of room to help. This guide covers setup, the gotchas, and the
@@ -27,8 +27,8 @@ participating, you agree to uphold it.
 ### Install & run
 
 ```bash
-git clone --recurse-submodules <your-fork-url> atelier
-cd atelier
+git clone --recurse-submodules <your-fork-url> ventura
+cd ventura
 npm install        # postinstall rebuilds node-pty against Electron's ABI
 npm run dev        # live-reloading Electron build
 ```
@@ -46,7 +46,7 @@ npm run dev        # live-reloading Electron build
 2. **Run protocol and retained-runtime tests:** `npm run test:gauntlet` and
    `npm run test:focused`.
 3. **Confirm a production build works:** `npm run build`, then run
-   `npm run check:atelier-assets`.
+   `npm run check:ventura-assets`.
 4. **Match the aesthetic.** Any new UI **must** derive from the design tokens in
    [`DESIGN.md`](./DESIGN.md) / `src/renderer/src/design/tokens.ts` — no ad-hoc
    colors, spacing, or fonts. `tokens.ts` and `tokens.css` are mirrored; if you

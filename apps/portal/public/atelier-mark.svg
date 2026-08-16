@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-label="Atelier easel mark">
-  <rect width="256" height="256" rx="56" fill="#F2EADC"/>
-  <circle cx="128" cy="40" r="12" fill="#C65D3B"/>
-  <path d="M128 50v28M77 78h102M88 78l-8 91h96l-8-91M106 169l-30 58M150 169l30 58M128 169v58" fill="none" stroke="#27251F" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>
-  <rect x="94" y="96" width="68" height="52" rx="8" fill="#C65D3B"/>
-  <path d="M110 130l13-15 10 10 10-12 9 17" fill="none" stroke="#F7F2E8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-</svg>

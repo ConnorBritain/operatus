@@ -16,12 +16,12 @@ for (let index = 0; index < argv.length; index += 2) {
 }
 
 if (!['freeze', 'complete', 'critic', 'acknowledge', 'cancel', 'escalate'].includes(action)) {
-  fail('usage: atelier-gauntlet <freeze|complete|critic|acknowledge|cancel|escalate> --run <id> [--launch <id>] [--file <json>]');
+  fail('usage: ventura-gauntlet <freeze|complete|critic|acknowledge|cancel|escalate> --run <id> [--launch <id>] [--file <json>]');
 }
-const socketPath = process.env.ATELIER_GAUNTLET_SOCKET;
-const token = process.env.ATELIER_GAUNTLET_TOKEN;
+const socketPath = process.env.VENTURA_GAUNTLET_SOCKET;
+const token = process.env.VENTURA_GAUNTLET_TOKEN;
 const runId = args.get('run');
-if (!socketPath || !token) fail('Atelier control environment is unavailable; run this command inside an Atelier-launched agent');
+if (!socketPath || !token) fail('Ventura control environment is unavailable; run this command inside an Ventura-launched agent');
 if (!runId) fail('--run is required');
 
 let payload = {};
@@ -45,14 +45,14 @@ socket.on('connect', () => socket.write(`${JSON.stringify(request)}\n`));
 socket.on('data', (chunk) => { response += chunk; });
 socket.on('end', () => {
   let result;
-  try { result = JSON.parse(response); } catch { fail(`invalid Atelier response: ${response.slice(0, 500)}`); }
-  if (!result.ok) fail(result.error || 'Atelier command failed');
+  try { result = JSON.parse(response); } catch { fail(`invalid Ventura response: ${response.slice(0, 500)}`); }
+  if (!result.ok) fail(result.error || 'Ventura command failed');
   const run = result.snapshot && result.snapshot.run;
   process.stdout.write(`${JSON.stringify({ ok: true, runId: run && run.id, status: run && run.status, phase: run && run.phase, artifactSha: run && run.currentArtifactSha }, null, 2)}\n`);
 });
-socket.on('error', (error) => fail(`cannot reach Atelier control socket: ${error.message}`));
+socket.on('error', (error) => fail(`cannot reach Ventura control socket: ${error.message}`));
 
 function fail(message) {
-  process.stderr.write(`atelier-gauntlet: ${message}\n`);
+  process.stderr.write(`ventura-gauntlet: ${message}\n`);
   process.exit(1);
 }

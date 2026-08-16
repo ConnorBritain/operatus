@@ -32,7 +32,7 @@ import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
 import { LocalGauntletBackend, type PreparedLaunch } from './gauntlet/localBackend';
 import { GauntletControlServer } from './gauntlet/controlServer';
-import { AtelierRemoteNode, REMOTE_NODE_SECRET_REF } from './remoteNode';
+import { VenturaRemoteNode, REMOTE_NODE_SECRET_REF } from './remoteNode';
 import { buildConductorAcknowledgmentPrompt, buildConductorOrientationPrompt } from './gauntlet/prompts';
 import type {
   GauntletRunSnapshot,
@@ -305,7 +305,7 @@ const reflector = new MemoryReflector(
 const persist = new PersistStore();
 let gauntletBackend: LocalGauntletBackend | null = null;
 let gauntletControl: GauntletControlServer | null = null;
-let remoteNode: AtelierRemoteNode | null = null;
+let remoteNode: VenturaRemoteNode | null = null;
 const advancingGauntlets = new Set<string>();
 const orientedGauntletPrompts = new Set<string>();
 const acknowledgedReportPrompts = new Set<string>();
@@ -346,17 +346,17 @@ function publishGauntlet(snapshot: GauntletRunSnapshot): GauntletRunSnapshot {
 
 function gauntletHelperPath(): string {
   return app.isPackaged
-    ? join(process.resourcesPath, 'atelier-gauntlet.cjs')
-    : join(app.getAppPath(), 'resources', 'atelier-gauntlet.cjs');
+    ? join(process.resourcesPath, 'ventura-gauntlet.cjs')
+    : join(app.getAppPath(), 'resources', 'ventura-gauntlet.cjs');
 }
 
 function gauntletAgentEnv(token: string): Record<string, string> {
   const endpoint = gauntletControl?.info();
   if (!endpoint) throw new Error('Gauntlet control service is unavailable');
   return {
-    ATELIER_GAUNTLET_SOCKET: endpoint.socketPath,
-    ATELIER_GAUNTLET_TOKEN: token,
-    ATELIER_GAUNTLET_HELPER: gauntletHelperPath()
+    VENTURA_GAUNTLET_SOCKET: endpoint.socketPath,
+    VENTURA_GAUNTLET_TOKEN: token,
+    VENTURA_GAUNTLET_HELPER: gauntletHelperPath()
   };
 }
 
@@ -407,7 +407,7 @@ async function spawnPreparedGauntlet(prepared: PreparedLaunch): Promise<void> {
   const skillLock = gauntlet().status(launch.runId).skillLock;
   if (skillLock?.entries.some((entry) => entry.role === launch.role)) {
     const hiveRoot = hive.root();
-    if (!hiveRoot) throw new Error('cannot materialize run skills before the Atelier agent home is configured');
+    if (!hiveRoot) throw new Error('cannot materialize run skills before the Ventura agent home is configured');
     const providerHome = launch.provider === 'codex' ? '.codex' : '.claude';
     gauntlet().skills.materialize(skillLock, launch.role, join(hiveRoot, 'agents', launch.id, providerHome, 'skills'));
   }
@@ -2241,7 +2241,7 @@ function floorCascade(): WindowBounds | null {
   return clampBounds({ x: b.x + OFFSET, y: b.y + OFFSET, width: b.width, height: b.height });
 }
 
-// ─── Shareable hires: atelier:// deep link + file import ─────────────────────
+// ─── Shareable hires: ventura:// deep link + file import ─────────────────────
 // A hire manifest NEVER auto-spawns: it is validated, then handed to the
 // renderer, which pre-fills the Add-Agent modal for human review. See
 // src/shared/hire.ts for the spec + security model.
@@ -2286,10 +2286,10 @@ async function handleHireLink(link: string): Promise<void> {
 // exe+args form or the registration points at electron.exe with no entry.
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('atelier', process.execPath, [resolve(process.argv[1])]);
+    app.setAsDefaultProtocolClient('ventura', process.execPath, [resolve(process.argv[1])]);
   }
 } else {
-  app.setAsDefaultProtocolClient('atelier');
+  app.setAsDefaultProtocolClient('ventura');
 }
 
 // Deep links on Windows/Linux arrive as the argv of a SECOND process — take the
@@ -2306,7 +2306,7 @@ if (!gotInstanceLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
-    const link = argv.find((a) => a.startsWith('atelier://'));
+    const link = argv.find((a) => a.startsWith('ventura://'));
     if (link) void handleHireLink(link);
   });
 }
@@ -2358,7 +2358,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     ...(geom && geom.x !== undefined && geom.y !== undefined ? { x: geom.x, y: geom.y } : {}),
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
-    title: isFloor ? 'Atelier — Floor' : 'Atelier',
+    title: isFloor ? 'Ventura — Floor' : 'Ventura',
     backgroundColor: '#FFF8E7',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -3476,7 +3476,7 @@ ipcMain.handle('gauntlet:get', (_evt, runId: unknown) => {
 ipcMain.handle('gauntlet:start', (_evt, payload: unknown) => {
   const input = (payload ?? {}) as Partial<StartGauntletInput> & { assignments?: RoleSkillAssignment[] };
   if (typeof input.repository !== 'string' || typeof input.objective !== 'string') throw new Error('repository and objective are required');
-  if (!hive.enabled()) throw new Error('Finish Atelier setup before starting a Gauntlet Run.');
+  if (!hive.enabled()) throw new Error('Finish Ventura setup before starting a Gauntlet Run.');
   const conductorId = hive.registry().godId ?? 'god';
   if (!ptyForAgent(conductorId)) throw new Error('Conductor is still clocking in. Wait for Conductor to be ready, then start the run again.');
   const snapshot = publishGauntlet(gauntlet().start({
@@ -3505,7 +3505,7 @@ ipcMain.handle('gauntlet:cancel', (_evt, runId: unknown, reason: unknown) => {
 // ─── IPC: outbound-only hosted portal connection ──────────────────────────
 ipcMain.handle('remote-node:status', () => remoteNode?.status() ?? {
   state: 'disabled', enabled: false, paired: false,
-  portalUrl: 'https://atelier-pidgeon.vercel.app', nodeId: null,
+  portalUrl: 'https://england-ventura.vercel.app', nodeId: null,
   nodeName: '', lastSyncAt: null, error: 'Remote node service is not ready'
 });
 ipcMain.handle('remote-node:configure', (_evt, payload: unknown) => {
@@ -4881,7 +4881,7 @@ app.whenReady().then(async () => {
   });
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
-  const startupHireLink = process.argv.find((a) => a.startsWith('atelier://'));
+  const startupHireLink = process.argv.find((a) => a.startsWith('ventura://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
 
   // Hand every spawned agent the path to the Slack reply discovery file via the
@@ -4894,7 +4894,7 @@ app.whenReady().then(async () => {
   // never block app startup.
   try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
   try {
-    const primitiveOverride = process.env.ATELIER_AGENT_PRIMITIVES_PATH?.trim();
+    const primitiveOverride = process.env.VENTURA_AGENT_PRIMITIVES_PATH?.trim();
     const primitiveRoot = primitiveOverride
       ? resolve(primitiveOverride)
       : app.isPackaged
@@ -4924,7 +4924,7 @@ app.whenReady().then(async () => {
   initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
-  remoteNode = new AtelierRemoteNode({
+  remoteNode = new VenturaRemoteNode({
     appVersion: () => app.getVersion(),
     readConfig: () => readConfig().remoteNode,
     writeConfig: (remoteConfig) => { writeConfig({ remoteNode: remoteConfig }); },

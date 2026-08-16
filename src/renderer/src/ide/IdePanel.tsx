@@ -327,7 +327,7 @@ export function IdePanel() {
         <span style={{
           fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '20px', color: 'var(--cth-ink-900)'
         }}>
-          ATELIER · IDE
+          VENTURA · IDE
         </span>
         <span title={root ?? ''} style={{
           fontFamily: 'var(--cth-font-mono)', fontSize: 13, color: 'var(--cth-ink-500)',

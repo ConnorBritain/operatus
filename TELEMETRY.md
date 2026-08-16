@@ -1,8 +1,8 @@
 # Telemetry
 
-Atelier analytics are disabled by default. Development and fork builds compile without a PostHog key and send nothing. Enabling the Settings toggle alone cannot transmit without a deliberately configured build-time destination.
+Ventura analytics are disabled by default. Development and fork builds compile without a PostHog key and send nothing. Enabling the Settings toggle alone cannot transmit without a deliberately configured build-time destination.
 
-If a future Atelier-owned release enables analytics, the existing implementation permits only these anonymous, fixed-shape events: `first_run`, `app_launched`, `agent_spawned` with provider, `feature_used` with an allowlisted feature name, and `session_ended` with a coarse duration bucket. Common properties are limited to app version, operating system, and CPU architecture.
+If a future Ventura-owned release enables analytics, the existing implementation permits only these anonymous, fixed-shape events: `first_run`, `app_launched`, `agent_spawned` with provider, `feature_used` with an allowlisted feature name, and `session_ended` with a coarse duration bucket. Common properties are limited to app version, operating system, and CPU architecture.
 
 Prompts, transcripts, output, file paths, repository and branch names, hostnames, email addresses, account identities, machine identifiers, API keys, run objectives, findings, and arbitrary free-form properties are never allowlisted.
 

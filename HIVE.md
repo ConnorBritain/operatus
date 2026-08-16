@@ -1,6 +1,6 @@
 # The Hive — autonomous multi-agent layer
 
-> How Atelier turns a room full of independent CLI agents
+> How Ventura turns a room full of independent CLI agents
 > processes into a collaborating, self-coordinating team with persistent memory,
 > a shared blackboard, and a "god" orchestrator that runs the floor.
 

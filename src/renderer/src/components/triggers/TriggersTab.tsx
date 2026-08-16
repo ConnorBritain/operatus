@@ -54,7 +54,7 @@ export function TriggersTab() {
 
       <TriggerCard
         title="ORGANISATION"
-        blurb="Let a teammate's Atelier message yours."
+        blurb="Let a teammate's Ventura message yours."
         summary={orgSummary}
       >
         <OrgSection onSummary={setOrgSummary} />

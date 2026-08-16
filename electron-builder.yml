@@ -1,5 +1,5 @@
-appId: com.connorbritain.atelier
-productName: Atelier
+appId: com.connorbritain.ventura
+productName: Ventura
 copyright: Copyright © 2026 Connor Britain; original Munder Difflin contributors retained in notices
 
 # Where electron-updater looks for new versions (latest*.yml + assets on GitHub
@@ -9,18 +9,18 @@ copyright: Copyright © 2026 Connor Britain; original Munder Difflin contributor
 publish:
   provider: github
   owner: ConnorBritain
-  repo: atelier
+  repo: ventura
 
 # Notarize + staple after signing, but only when APPLE_* creds are in the env
 # (the hook no-ops otherwise, so contributor builds still work). Root-level hook.
 afterSign: build/notarize.cjs
 
-# Register the atelier:// URL scheme in the packaged app: CFBundleURLTypes on
+# Register the ventura:// URL scheme in the packaged app: CFBundleURLTypes on
 # macOS and registry entries via NSIS on Windows.
 protocols:
-  - name: Atelier
+  - name: Ventura
     schemes:
-      - atelier
+      - ventura
 
 # electron-vite emits the app into out/; package exactly that plus what the
 # runtime needs. node-pty is native, so keep it out of the asar.
@@ -42,8 +42,8 @@ files:
 extraResources:
   - from: resources/md-slack-reply.cjs
     to: md-slack-reply.cjs
-  - from: resources/atelier-gauntlet.cjs
-    to: atelier-gauntlet.cjs
+  - from: resources/ventura-gauntlet.cjs
+    to: ventura-gauntlet.cjs
   - from: vendor/agent-primitives
     to: agent-primitives
   # Knowledge Graph agent CLI + its pure-JS core. Agents invoke `node
@@ -76,15 +76,15 @@ mac:
   # the privacy prompt and, for a signed app, remembers the grant — so the user
   # is asked ONCE instead of on every agent action.
   extendInfo:
-    NSDocumentsFolderUsageDescription: "Atelier runs coding agents that read and write files in project folders you select."
-    NSDesktopFolderUsageDescription: "Atelier agents may work on projects located on your Desktop."
-    NSDownloadsFolderUsageDescription: "Atelier agents may work on projects located in your Downloads."
-    NSRemovableVolumesUsageDescription: "Atelier agents may work on projects located on external volumes."
-    NSNetworkVolumesUsageDescription: "Atelier agents may work on projects located on network volumes."
+    NSDocumentsFolderUsageDescription: "Ventura runs coding agents that read and write files in project folders you select."
+    NSDesktopFolderUsageDescription: "Ventura agents may work on projects located on your Desktop."
+    NSDownloadsFolderUsageDescription: "Ventura agents may work on projects located in your Downloads."
+    NSRemovableVolumesUsageDescription: "Ventura agents may work on projects located on external volumes."
+    NSNetworkVolumesUsageDescription: "Ventura agents may work on projects located on network volumes."
     # The microphone is used by two opt-in, off-by-default voice features: Free
     # Flow dictation (Groq transcription) and realtime Conductor (live voice chat
     # with the orchestrator via OpenAI). Mic access only happens while one is on.
-    NSMicrophoneUsageDescription: "Atelier uses your microphone only for opt-in dictation and realtime Conductor voice features. The microphone remains off unless you enable one of them."
+    NSMicrophoneUsageDescription: "Ventura uses your microphone only for opt-in dictation and realtime Conductor voice features. The microphone remains off unless you enable one of them."
   # Hardened runtime + entitlements so the spawned `claude` agents inherit this
   # app's TCC responsibility (one grant covers them all) and node-pty can load.
   hardenedRuntime: true
@@ -114,10 +114,10 @@ mac:
       arch: [universal]
     - target: zip
       arch: [universal]
-  artifactName: Atelier-${version}-mac-${arch}.${ext}
+  artifactName: Ventura-${version}-mac-${arch}.${ext}
 
 dmg:
-  title: Atelier ${version}
+  title: Ventura ${version}
 
 # ---- Windows ----
 win:
@@ -132,11 +132,11 @@ nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
-  artifactName: Atelier-${version}-win-x64-setup.exe
-  shortcutName: Atelier
+  artifactName: Ventura-${version}-win-x64-setup.exe
+  shortcutName: Ventura
 
 portable:
-  artifactName: Atelier-${version}-win-x64-portable.exe
+  artifactName: Ventura-${version}-win-x64-portable.exe
 
 # ---- Linux ----
 linux:
@@ -145,4 +145,4 @@ linux:
   target:
     - target: AppImage
       arch: [x64]
-  artifactName: Atelier-${version}-linux-x86_64.AppImage
+  artifactName: Ventura-${version}-linux-x86_64.AppImage

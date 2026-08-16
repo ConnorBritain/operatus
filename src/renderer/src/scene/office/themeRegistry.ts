@@ -1,15 +1,15 @@
-// Atelier floor theme contract. The scene engine remains the proven Munder
+// Ventura floor theme contract. The scene engine remains the proven Munder
 // Pixi/pathfinding implementation; the distributable map and art are clean-room
-// Original Atelier assets, loaded independently from historical theme packs.
+// Original Ventura assets, loaded independently from historical theme packs.
 
 import type { Texture } from 'pixi.js';
 import { colors } from '@/design/tokens';
 import { CAST_BY_NAME, getCastFrames, DEFAULT_CHARACTER, type CastMember, type OfficeCharacterName } from './cast';
-import atelierFloorUrl from '@/assets/atelier/atelier-operations-floor.png?url';
-import atelierMapRaw from '@/assets/maps/atelier-operations.tmj?raw';
+import venturaFloorUrl from '@/assets/ventura/ventura-operations-floor.png?url';
+import venturaMapRaw from '@/assets/maps/ventura-operations.tmj?raw';
 
 /** Legacy ids remain accepted as config aliases so an upstream profile import
- * cannot strand the renderer; every id resolves to the Atelier floor. */
+ * cannot strand the renderer; every id resolves to the Ventura floor. */
 export type ThemeId = 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
 export interface Tile { x: number; y: number }
 export type Facing = 'up' | 'down' | 'left' | 'right';
@@ -38,12 +38,12 @@ export interface ThemeConfig {
   cast: ThemeCast;
 }
 
-export const ATELIER_THEME: ThemeConfig = {
+export const VENTURA_THEME: ThemeConfig = {
   // `office` is retained only as the persisted config key. Visually this is the
-  // clean-room Atelier operations floor.
+  // clean-room Ventura operations floor.
   id: 'office',
-  mapRaw: atelierMapRaw,
-  backgroundUrl: atelierFloorUrl,
+  mapRaw: venturaMapRaw,
+  backgroundUrl: venturaFloorUrl,
   tilesets: [],
   primarySeatNames: [
     'desk-ceo',
@@ -81,6 +81,6 @@ export const ATELIER_THEME: ThemeConfig = {
   }
 };
 
-export const OFFICE_THEME = ATELIER_THEME;
-export function getTheme(_id: ThemeId): ThemeConfig { return ATELIER_THEME; }
-export function allThemes(): ThemeConfig[] { return [ATELIER_THEME]; }
+export const OFFICE_THEME = VENTURA_THEME;
+export function getTheme(_id: ThemeId): ThemeConfig { return VENTURA_THEME; }
+export function allThemes(): ThemeConfig[] { return [VENTURA_THEME]; }

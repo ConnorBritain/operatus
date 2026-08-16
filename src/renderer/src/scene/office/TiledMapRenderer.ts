@@ -140,7 +140,7 @@ export class TiledMapRenderer {
         }
       }
     }
-    // Atelier's clean-room floor uses one authored background image plus Tiled
+    // Ventura's clean-room floor uses one authored background image plus Tiled
     // rectangle objects for collision. This keeps the familiar map/spawn/zone
     // contract without requiring any legacy tile atlas or copied tile indices.
     const objects = this.findLayer(COLLISION_LAYER, 'objectgroup')?.objects ?? [];

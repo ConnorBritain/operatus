@@ -43,7 +43,7 @@ import { reduceStatus, clampPercent, isNewer, type UpdateStatus } from '../share
  *      downgrade is per-check, not a permanent latch.
  */
 
-const REPO = 'ConnorBritain/atelier';
+const REPO = 'ConnorBritain/ventura';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
 const FALLBACK_CACHE_MS = 60 * 60 * 1000;     // 1h between releases/latest polls
 
@@ -74,7 +74,7 @@ function emit(status: UpdateStatus): void {
 
 function autoUpdateEnabled(): boolean {
   try {
-    return readConfig().autoUpdate === true; // Atelier-owned releases are opt-in until established
+    return readConfig().autoUpdate === true; // Ventura-owned releases are opt-in until established
   } catch {
     return false;
   }
@@ -126,7 +126,7 @@ function fallbackCheck(reason: string | undefined, force = false): void {
         hostname: 'api.github.com',
         path: `/repos/${REPO}/releases/latest`,
         method: 'GET',
-        headers: { 'User-Agent': 'atelier-updater', Accept: 'application/vnd.github+json' },
+        headers: { 'User-Agent': 'ventura-updater', Accept: 'application/vnd.github+json' },
         timeout: 10_000
       },
       (res) => {

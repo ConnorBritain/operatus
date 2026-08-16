@@ -15,11 +15,11 @@ function git(cwd, args) {
 }
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'atelier-backend-'));
+  const root = mkdtempSync(join(tmpdir(), 'ventura-backend-'));
   const repository = join(root, 'repository');
   execFileSync('git', ['init', '-b', 'main', repository]);
-  git(repository, ['config', 'user.name', 'Atelier Test']);
-  git(repository, ['config', 'user.email', 'atelier@example.invalid']);
+  git(repository, ['config', 'user.name', 'Ventura Test']);
+  git(repository, ['config', 'user.email', 'ventura@example.invalid']);
   writeFileSync(join(repository, 'value.txt'), 'base\n');
   git(repository, ['add', 'value.txt']);
   git(repository, ['commit', '-m', 'base']);

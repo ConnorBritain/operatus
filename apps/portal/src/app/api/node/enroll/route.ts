@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
   const nodeToken = newNodeToken();
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("enroll_atelier_node", {
+  const { data, error } = await admin.rpc("enroll_ventura_node", {
     invitation_code_hash: secretHash(normalizePairingCode(parsed.data.code)),
     node_token_hash: secretHash(nodeToken),
     node_name: parsed.data.name,
@@ -23,7 +23,11 @@ export async function POST(request: Request) {
 
   if (error || !data) {
     const invalid = error?.message.includes("PAIRING_INVITATION_INVALID_OR_EXPIRED");
-    return NextResponse.json({ error: invalid ? "PAIRING_INVALID_OR_EXPIRED" : "ENROLLMENT_FAILED" }, { status: invalid ? 410 : 500 });
+    const occupied = error?.message.includes("nodes_one_active_per_branch_idx");
+    return NextResponse.json(
+      { error: invalid ? "PAIRING_INVALID_OR_EXPIRED" : occupied ? "BRANCH_ALREADY_PAIRED" : "ENROLLMENT_FAILED" },
+      { status: invalid ? 410 : occupied ? 409 : 500 },
+    );
   }
 
   return NextResponse.json({ nodeId: data, nodeToken }, { status: 201 });

@@ -106,7 +106,7 @@ export function App() {
         c.harnessHome ? c.branchProfiles?.[c.harnessHome] : undefined
       );
       useStore.getState().setBranchProfile(branchProfile);
-      document.title = `${branchProfile.name} · Atelier`;
+      document.title = `${branchProfile.name} · Ventura`;
       // Mirror the triggers so Settings → Connections and the Command Center's
       // Triggers tab read one list, not two copies that drift — whichever surface
       // saves calls these same setters and the other repaints. No extra IPC: main
@@ -271,7 +271,7 @@ export function App() {
       >
         <img
           src={brandLogo}
-          alt="Atelier"
+          alt="Ventura"
           style={{ height: 20, width: 'auto', display: 'block' }}
         />
         {/* v0.3.7: the version is no longer inert text — it doubles as the

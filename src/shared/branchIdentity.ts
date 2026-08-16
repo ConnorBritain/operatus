@@ -1,5 +1,5 @@
 /**
- * Visual identity for one Atelier execution branch (a daemon/workspace pair).
+ * Visual identity for one Ventura execution branch (a daemon/workspace pair).
  * Branch themes are presentation only: they never alter provider, artifact,
  * authority, or Gauntlet protocol behavior.
  */

@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const loadTs = require('./load-ts.cjs');
 
-const { AtelierRemoteNode, validatePortalUrl } = loadTs('src/main/remoteNode.ts');
+const { VenturaRemoteNode, validatePortalUrl } = loadTs('src/main/remoteNode.ts');
 
 const SHA = 'a'.repeat(40);
 
@@ -12,7 +12,7 @@ function snapshot(overrides = {}) {
   return {
     run: {
       id: 'run-remote-1', backend: 'local', repository: '/Users/private/Code/secret-repo',
-      requestedObjective: 'private objective', branch: 'atelier/gauntlet/run-remote-1',
+      requestedObjective: 'private objective', branch: 'ventura/gauntlet/run-remote-1',
       baseSha: SHA, currentArtifactSha: SHA, currentLaunchId: null,
       currentCriticReportId: null, contract: null, status: 'awaiting_critic',
       repairRound: 0, infrastructureRetries: 0,
@@ -32,14 +32,14 @@ function snapshot(overrides = {}) {
 }
 
 test('portal origins fail closed to HTTPS except explicit localhost development', () => {
-  assert.equal(validatePortalUrl('https://atelier.example/path'), 'https://atelier.example');
+  assert.equal(validatePortalUrl('https://ventura.example/path'), 'https://ventura.example');
   assert.equal(validatePortalUrl('http://localhost:3000'), 'http://localhost:3000');
-  assert.throws(() => validatePortalUrl('http://atelier.example'), /must use HTTPS/);
-  assert.throws(() => validatePortalUrl('https://user:pass@atelier.example'), /only the portal origin/);
+  assert.throws(() => validatePortalUrl('http://ventura.example'), /must use HTTPS/);
+  assert.throws(() => validatePortalUrl('https://user:pass@ventura.example'), /only the portal origin/);
 });
 
 test('sync redacts local paths and executes only an exact-version bounded command', async () => {
-  let cfg = { enabled: true, portalUrl: 'https://atelier.example', nodeId: 'node-1', nodeName: 'Studio Mac' };
+  let cfg = { enabled: true, portalUrl: 'https://ventura.example', nodeId: 'node-1', nodeName: 'Studio Mac' };
   let current = snapshot();
   let syncBody;
   let acknowledgment;
@@ -63,7 +63,7 @@ test('sync redacts local paths and executes only an exact-version bounded comman
     }
     throw new Error(`unexpected request: ${path}`);
   };
-  const node = new AtelierRemoteNode({
+  const node = new VenturaRemoteNode({
     appVersion: () => '0.1.0', readConfig: () => cfg,
     writeConfig: (next) => { cfg = next; }, getToken: () => 'atn_secret',
     setToken: () => ({ ok: true }), deleteToken: () => {}, snapshots: () => [current],
@@ -92,9 +92,9 @@ test('stale remote commands are rejected without touching local authority', asyn
   const current = snapshot();
   let acknowledgment;
   let cancelCount = 0;
-  const node = new AtelierRemoteNode({
+  const node = new VenturaRemoteNode({
     appVersion: () => '0.1.0',
-    readConfig: () => ({ enabled: true, portalUrl: 'https://atelier.example', nodeId: 'node-1' }),
+    readConfig: () => ({ enabled: true, portalUrl: 'https://ventura.example', nodeId: 'node-1' }),
     writeConfig: () => {}, getToken: () => 'atn_secret', setToken: () => ({ ok: true }),
     deleteToken: () => {}, snapshots: () => [current],
     cancelRun: () => { cancelCount += 1; return current; }, messageConductor: () => {},

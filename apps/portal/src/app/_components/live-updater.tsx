@@ -14,7 +14,7 @@ export function LiveUpdater() {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => router.refresh(), 250);
     };
-    const channel = supabase.channel("atelier-portal")
+    const channel = supabase.channel("ventura-portal")
       .on("postgres_changes", { event: "*", schema: "public", table: "nodes" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "run_projections" }, refresh)
       .on("postgres_changes", { event: "*", schema: "public", table: "commands" }, refresh)

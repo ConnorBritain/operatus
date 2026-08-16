@@ -1,12 +1,12 @@
 <div align="center">
 
-# Atelier
+# Ventura
 
 ### A local operations floor for conducted AI coding work
 
-Atelier is a history-preserving fork of Munder Difflin that adds **Gauntlet Run**: a deterministic, inspectable loop around real Claude Code and Codex CLI sessions, exact Git commits, independent critique, and bounded repair.
+Ventura is a history-preserving fork of Munder Difflin for running **agent ventures**: deterministic, inspectable Gauntlet loops around real Claude Code and Codex CLI sessions, exact Git commits, independent critique, and bounded repair.
 
-![Atelier operations floor](src/renderer/src/assets/atelier/atelier-operations-floor.png)
+![Ventura operations floor](src/renderer/src/assets/ventura/ventura-operations-floor.png)
 
 <em>Electron · React · TypeScript · Pixi.js · node-pty · SQLite · Git</em>
 
@@ -34,10 +34,10 @@ The loop ends as `passed`, `human_required`, `cancelled`, or an explicit infrast
 - A pinned [Agent Primitives](https://github.com/ConnorBritain/agent-primitives) registry with exact resolution receipts.
 - A configurable Skill Depot, seeded with [mattpocock/skills](https://github.com/mattpocock/skills) at commit `068b6e0c62393147daf03530149cdce209c93da8`.
 - A Runs surface showing the contract, phase, exact artifact, checks, findings, acknowledgment, repairs, skills, and events.
-- An original, redistributable Atelier operations floor: a warm, light research-studio reskin that preserves the useful floor/terminal interaction model.
+- An original, redistributable Ventura operations floor: a warm, light company-floor reskin that preserves the useful floor/terminal interaction model.
 - Twelve named branch identities, stored per workspace, so machines and compute locations remain visually distinct at a glance.
 - A responsive hosted portal with Supabase identity, branch/machine discovery, one-time pairing, redacted run views, and narrow audited commands.
-- Updater and analytics destinations disabled by default until Atelier-owned services exist.
+- Updater and analytics destinations disabled by default until Ventura-owned services exist.
 
 The candidate branch is always left unmerged and unpushed for a human to inspect.
 
@@ -48,13 +48,13 @@ The candidate branch is always left unmerged and unpushed for a human to inspect
 - Xcode Command Line Tools (`xcode-select --install`) for native modules.
 - Installed and authenticated `claude` and `codex` CLIs for the default role profile.
 
-Atelier uses those existing CLI subscriptions. Optional voice and third-party integrations can require separate API credentials.
+Ventura uses those existing CLI subscriptions. Optional voice and third-party integrations can require separate API credentials.
 
 ## Development
 
 ```bash
-git clone --recurse-submodules git@github.com:ConnorBritain/atelier.git
-cd atelier
+git clone --recurse-submodules git@github.com:ConnorBritain/ventura.git
+cd ventura
 npm ci
 npm run dev
 ```
@@ -66,10 +66,10 @@ npm run typecheck
 npm run test:gauntlet
 npm run test:focused
 npm run build
-npm run check:atelier-assets
+npm run check:ventura-assets
 ```
 
-The app uses a clean Atelier application profile (`com.connorbritain.atelier`) and `atelier://` deep links. Open **Runs** in the command center, choose a local Git repository, enter a bounded objective, optionally assign pinned skills by role, and start the run. The long-lived Conductor receives the orientation request and launches fresh role sessions through an authenticated local socket.
+The app uses a clean Ventura application profile (`com.connorbritain.ventura`) and `ventura://` deep links. Open **Runs** in the command center, choose a local Git repository, enter a bounded objective, optionally assign pinned skills by role, and start the run. The long-lived Conductor receives the orientation request and launches fresh role sessions through an authenticated local socket.
 
 ## Trust model
 
@@ -86,11 +86,11 @@ Role commands are schema-validated, size-bounded, and scoped by per-launch token
 
 ## Skill Depot
 
-Synchronization is manual and pinned. Atelier never runs a skill repository’s installers or hooks. It rejects path escapes and symlinks, hashes complete skill directories, requires explicit precedence for duplicate names, and materializes the locked result read-only into provider-specific agent homes. See [Skill Depot](docs/SKILL_DEPOT.md).
+Synchronization is manual and pinned. Ventura never runs a skill repository’s installers or hooks. It rejects path escapes and symlinks, hashes complete skill directories, requires explicit precedence for duplicate names, and materializes the locked result read-only into provider-specific agent homes. See [Skill Depot](docs/SKILL_DEPOT.md).
 
-## Remote studio
+## Remote venture control
 
-The responsive portal is deployed at [atelier-pidgeon.vercel.app](https://atelier-pidgeon.vercel.app). Supabase identity binds users to workspaces, branches, and paired machines. Each desktop node makes outbound HTTPS requests, publishes a least-information run projection, and revalidates expiring commands against local state and exact run versions. Local SQLite and Git remain authoritative, and there is no exposed shell or inbound daemon port. See the [operations guide](docs/HOSTED_CONTROL_PLANE.md) and [remote floor architecture](docs/architecture/remote-portal.md).
+The responsive portal is deployed at [england-ventura.vercel.app](https://england-ventura.vercel.app). Supabase identity binds users to workspaces, branches, and paired machines. Each desktop node makes outbound HTTPS requests, publishes a least-information run projection, and revalidates expiring commands against local state and exact run versions. Local SQLite and Git remain authoritative, and there is no exposed shell or inbound daemon port. See the [operations guide](docs/HOSTED_CONTROL_PLANE.md) and [remote floor architecture](docs/architecture/remote-portal.md).
 
 ## Architecture and provenance
 
@@ -102,7 +102,7 @@ The responsive portal is deployed at [atelier-pidgeon.vercel.app](https://atelie
 - [Third-party notices](THIRD_PARTY_NOTICES.md)
 - [Visual asset provenance](docs/assets/PROVENANCE.md)
 
-Atelier retains Munder Difflin’s MIT-licensed history and required copyright notice. Restricted upstream visual assets are absent from distributable source and blocked by automated hash/name checks.
+Ventura retains Munder Difflin’s MIT-licensed history and required copyright notice. Restricted upstream visual assets are absent from distributable source and blocked by automated hash/name checks.
 
 ## License
 

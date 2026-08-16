@@ -16,7 +16,7 @@ const labelStyle: CSSProperties = {
 
 export function RemoteAccessSettings() {
   const [status, setStatus] = useState<RemoteNodeStatus | null>(null);
-  const [portalUrl, setPortalUrl] = useState('https://atelier-pidgeon.vercel.app');
+  const [portalUrl, setPortalUrl] = useState('https://england-ventura.vercel.app');
   const [nodeName, setNodeName] = useState('');
   const [pairingCode, setPairingCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -57,7 +57,7 @@ export function RemoteAccessSettings() {
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
         <div>
           <div style={labelStyle}>Remote studio</div>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--cth-ink-900)' }}>Connect this office to your private Atelier portal</div>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--cth-ink-900)' }}>Connect this office to your private Ventura portal</div>
           <div style={{ marginTop: 3, fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-500)' }}>
             This machine only makes outbound encrypted requests. Repository paths, prompts, code, credentials, and full check output stay local.
           </div>

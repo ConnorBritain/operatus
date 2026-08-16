@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { GitHubIcon, GoogleIcon } from "@/app/_components/provider-icons";
 
 export function AuthPanel() {
   const [email, setEmail] = useState("");
@@ -37,10 +38,10 @@ export function AuthPanel() {
     <div className="auth-stack">
       <div className="social-row">
         <button className="button provider" disabled={busy} onClick={() => social("google")}>
-          <span className="provider-mark">G</span> Continue with Google
+          <span className="provider-mark"><GoogleIcon /></span> Continue with Google
         </button>
         <button className="button provider" disabled={busy} onClick={() => social("github")}>
-          <span className="provider-mark">GH</span> Continue with GitHub
+          <span className="provider-mark"><GitHubIcon /></span> Continue with GitHub
         </button>
       </div>
       <div className="divider"><span>or use email</span></div>

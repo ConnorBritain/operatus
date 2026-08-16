@@ -16,14 +16,16 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const device = await ensureClientDevice(request, userId, admin);
   if (!device.ok) return NextResponse.json({ error: device.error }, { status: device.status });
-  const [{ data: membership, error: membershipError }, { data: branch, error: branchError }] = await Promise.all([
+  const [{ data: membership, error: membershipError }, { data: branch, error: branchError }, { data: activeNode, error: nodeError }] = await Promise.all([
     admin.from("workspace_memberships").select("role, status")
       .eq("workspace_id", parsed.data.workspaceId).eq("user_id", userId).maybeSingle(),
     admin.from("branches").select("id")
       .eq("id", parsed.data.branchId).eq("workspace_id", parsed.data.workspaceId).maybeSingle(),
+    admin.from("nodes").select("id")
+      .eq("branch_id", parsed.data.branchId).is("revoked_at", null).maybeSingle(),
   ]);
 
-  if (membershipError || branchError) {
+  if (membershipError || branchError || nodeError) {
     return NextResponse.json({ error: "CONTROL_PLANE_UNAVAILABLE" }, { status: 503 });
   }
 
@@ -31,6 +33,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
   if (!branch) return NextResponse.json({ error: "BRANCH_NOT_FOUND" }, { status: 404 });
+  if (activeNode) return NextResponse.json({ error: "BRANCH_ALREADY_PAIRED" }, { status: 409 });
 
   const oneMinuteAgo = new Date(Date.now() - 60_000).toISOString();
   const { count } = await admin.from("pairing_invitations").select("id", { count: "exact", head: true })

@@ -73,7 +73,7 @@ export function UpdateToast() {
       </div>
       <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-700)' }}>
         {status.state === 'downloaded'
-          ? 'Restart Atelier whenever you like to apply it — nothing restarts on its own.'
+          ? 'Restart Ventura whenever you like to apply it — nothing restarts on its own.'
           : 'This install can’t update itself — grab the new build from the releases page.'}
       </span>
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

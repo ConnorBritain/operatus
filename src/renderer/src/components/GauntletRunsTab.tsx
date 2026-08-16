@@ -156,7 +156,7 @@ export function GauntletRunsTab() {
       </aside>
       <main style={{ minWidth: 0, overflow: 'auto', padding: 10 }}>
         {depotOpen ? <SkillDepotPanel /> : snapshot ? <RunDetail snapshot={snapshot} onCancel={async () => {
-          await window.cth.gauntletCancel(snapshot.run.id, 'Cancelled from the Atelier Runs surface');
+          await window.cth.gauntletCancel(snapshot.run.id, 'Cancelled from the Ventura Runs surface');
           await refresh(snapshot.run.id);
         }} /> : <Empty>Select a run to inspect its contract, agents, evidence, and immutable artifacts.</Empty>}
       </main>

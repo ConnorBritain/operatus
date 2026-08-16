@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   verify:
-    name: Atelier milestone verification
+    name: Ventura milestone verification
     runs-on: macos-latest
     timeout-minutes: 35
     steps:
@@ -40,13 +40,13 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
           SUPABASE_SECRET_KEY: ci_server_secret_placeholder
-          ATELIER_NODE_TOKEN_PEPPER: ci-only-placeholder-that-is-not-used-at-runtime
+          VENTURA_NODE_TOKEN_PEPPER: ci-only-placeholder-that-is-not-used-at-runtime
       - name: Verify retained runtime seams
         run: npm run test:focused
       - name: Build Electron development assets
         run: npm run build
-      - name: Verify Atelier identity and redistributable assets
-        run: npm run check:atelier-assets
+      - name: Verify Ventura identity and redistributable assets
+        run: npm run check:ventura-assets
       - name: Package unsigned macOS development app
         run: npx electron-builder --mac --dir --publish never
         env:

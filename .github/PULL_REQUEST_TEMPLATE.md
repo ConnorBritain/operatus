@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to Atelier! -->
+<!-- Thanks for contributing to Ventura! -->
 
 ## What & why
 
