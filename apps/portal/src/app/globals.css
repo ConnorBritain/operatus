@@ -15,6 +15,7 @@
   --branch: #9a6145;
   --branch-soft: #ead5c6;
   --space: 1rem;
+  --display-font: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", monospace;
 }
 
 html[data-appearance="dark"] {
@@ -86,7 +87,7 @@ input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible
 input:disabled, select:disabled { opacity: .72; }
 h1, h2, h3, p { margin-top: 0; }
 h1, h2, h3 { letter-spacing: -.025em; }
-h1, h2 { font-family: Georgia, "Times New Roman", serif; }
+h1, h2 { font-family: var(--display-font); font-weight: 850; }
 p { line-height: 1.58; }
 
 .pixel-panel {
@@ -134,13 +135,13 @@ p { line-height: 1.58; }
 .button.tiny { min-height: 38px; padding: .45rem .8rem; }
 
 /* Shared identity */
-.brand-lockup { align-items: center; display: inline-flex; gap: .7rem; font-family: Georgia, serif; font-size: 1.45rem; font-weight: 700; text-decoration: none; }
+.brand-lockup { align-items: center; display: inline-flex; gap: .7rem; font-family: var(--display-font); font-size: 1.45rem; font-weight: 850; letter-spacing: -.055em; text-decoration: none; }
 .brand-lockup.compact { font-size: 1.15rem; }
 .canonical-mark { border: 2px solid var(--line); border-radius: 3px; image-rendering: pixelated; box-shadow: 3px 3px 0 var(--shadow); }
 .brand-wordmark { align-items: flex-end; display: inline-flex; flex-direction: column; gap: .32rem; text-decoration: none; width: max-content; }
 .brand-wordmark-type {
   color: var(--ink);
-  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", monospace;
+  font-family: var(--display-font);
   font-size: 1.72rem;
   font-weight: 950;
   letter-spacing: -.075em;
@@ -163,16 +164,16 @@ p { line-height: 1.58; }
 .login-shell { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(380px, .82fr); min-height: 100vh; }
 .login-illustration { background: #dfd2bd; border-right: 3px solid var(--line); min-height: 100vh; overflow: hidden; padding: 2.2rem 3rem; position: relative; }
 .login-panel { align-items: center; background: var(--paper); display: flex; justify-content: center; padding: 3rem; }
-.login-panel-inner { display: grid; gap: 1.3rem; justify-items: center; max-width: 540px; width: 100%; }
-.login-brand-lockup { align-items: center; display: flex; flex-direction: column; gap: .25rem; }
-.login-brand-mark { height: 112px; image-rendering: pixelated; object-fit: contain; width: 112px; }
+.login-panel-inner { max-width: 540px; width: 100%; }
+.login-brand-lockup { align-items: center; display: flex; flex-direction: column; gap: .25rem; margin-bottom: 2.3rem; }
+.login-brand-mark { height: 104px; image-rendering: pixelated; object-fit: contain; width: 104px; }
 .login-brand-lockup .brand-wordmark { align-items: center; }
 .login-brand-lockup .brand-wordmark-studs { margin-right: 0; }
-.login-card { background: var(--paper-strong); max-width: 540px; padding: clamp(1.6rem, 4vw, 2.7rem); width: 100%; }
+.login-card { background: var(--paper-strong); display: flex; flex-direction: column; justify-content: center; max-width: 540px; min-height: min(820px, calc(100vh - 6rem)); padding: clamp(1.8rem, 4vw, 3rem); width: 100%; }
 .login-card-heading { display: block; }
-.login-card h2 { font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", monospace; font-size: clamp(1.85rem, 3.2vw, 2.55rem); font-weight: 850; letter-spacing: -.07em; margin: .45rem 0 .75rem; white-space: nowrap; }
+.login-card h2 { font-size: clamp(1.85rem, 3.2vw, 2.55rem); font-weight: 850; letter-spacing: -.07em; margin: .45rem 0 .75rem; white-space: nowrap; }
 .login-copy { bottom: 7%; max-width: 640px; position: absolute; z-index: 2; }
-.login-copy h1 { font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", "Liberation Mono", monospace; font-size: clamp(3.5rem, 6vw, 6.2rem); font-weight: 900; letter-spacing: -.085em; line-height: .84; margin: .65rem 0 1.35rem; text-shadow: 3px 3px 0 color-mix(in srgb, var(--paper-strong) 72%, transparent); }
+.login-copy h1 { font-size: clamp(3rem, 4.6vw, 4.8rem); font-weight: 900; letter-spacing: -.085em; line-height: .88; margin: .65rem 0 1.35rem; text-shadow: 3px 3px 0 color-mix(in srgb, var(--paper-strong) 72%, transparent); }
 .login-copy p { font-size: 1.05rem; max-width: 580px; }
 .login-office-art { border: 3px solid var(--line); box-shadow: 7px 7px 0 color-mix(in srgb, var(--line) 28%, transparent); height: 36%; image-rendering: pixelated; left: 5%; object-fit: cover; object-position: 50% 48%; position: absolute; top: 13%; width: 91%; }
 .auth-stack { margin-top: 1.6rem; }
@@ -199,7 +200,7 @@ p { line-height: 1.58; }
 .account-chip small { color: var(--muted); font-size: .65rem; font-weight: 600; text-transform: capitalize; }
 .portal-main { margin: 0 auto; max-width: 1500px; padding: clamp(2rem, 5vw, 4.5rem) clamp(1rem, 4vw, 3.5rem) 3rem; }
 .hero-row { align-items: end; display: flex; justify-content: space-between; margin-bottom: 2rem; }
-.hero-row h1 { font-size: clamp(2.8rem, 6vw, 5.6rem); line-height: .95; margin: .4rem 0 .75rem; }
+.hero-row h1 { font-size: clamp(2.8rem, 6vw, 5.6rem); font-weight: 900; letter-spacing: -.08em; line-height: .9; margin: .4rem 0 .75rem; text-shadow: 3px 3px 0 color-mix(in srgb, var(--paper-strong) 72%, transparent); }
 .hero-row p { color: var(--muted); margin: 0; }
 .pair-action { display: flex; flex-direction: column; gap: .35rem; }
 .pairing-ticket { background: var(--paper-strong); border: 2px solid var(--line); box-shadow: 4px 4px 0 var(--shadow); min-width: 300px; padding: 1rem; }
@@ -215,7 +216,7 @@ p { line-height: 1.58; }
 .branch-card { background: var(--paper-strong); overflow: hidden; }
 .branch-header { align-items: center; background: color-mix(in srgb, var(--branch-soft) 65%, var(--paper-strong)); border-bottom: 2px solid var(--line); color: #292622; display: grid; gap: .8rem; grid-template-columns: auto 1fr auto; padding: calc(var(--space) * 1.1); }
 .branch-header .eyebrow { color: #716b62; }
-.branch-header h2 { font-size: 1.6rem; margin: .12rem 0 0; }
+.branch-header h2 { font-size: 1.55rem; font-weight: 850; letter-spacing: -.06em; margin: .12rem 0 0; }
 .branch-swatch { background: var(--branch); border: 2px solid var(--line); box-shadow: 3px 3px 0 color-mix(in srgb, var(--branch) 35%, var(--shadow)); height: 34px; width: 34px; }
 .favorite-button { background: transparent; border: 0; color: var(--line-soft); cursor: pointer; font-size: 1.45rem; padding: .35rem; }
 .favorite-button.active { color: #c88428; text-shadow: 1px 1px 0 var(--line); }
@@ -249,8 +250,6 @@ p { line-height: 1.58; }
 .paper-card { background: var(--paper-strong); padding: 2rem; }
 .empty-state { text-align: center; }
 .empty-state h2 { font-size: 2rem; margin: .45rem 0; }
-.portal-footer { border-top: 2px solid var(--line-soft); color: var(--muted); display: flex; font-size: .7rem; justify-content: space-between; margin-top: 2.5rem; padding-top: 1rem; }
-.portal-footer span { align-items: center; display: flex; gap: .45rem; }
 .center-stage { align-items: center; display: flex; justify-content: center; min-height: 100vh; padding: 2rem; }
 .narrow-card { max-width: 600px; }
 
@@ -356,14 +355,16 @@ p { line-height: 1.58; }
   .login-illustration { border-bottom: 3px solid var(--line); border-right: 0; min-height: 650px; padding: 1.25rem; }
   .login-panel { padding: 2rem 1rem; }
   .login-copy { bottom: 1.75rem; left: 1.25rem; max-width: none; right: 1.25rem; width: auto; }
-  .login-copy h1 { font-size: clamp(2rem, 8.6vw, 2.25rem); letter-spacing: -.095em; overflow-wrap: normal; }
+  .login-copy h1 { font-size: clamp(1.8rem, 7.8vw, 2rem); letter-spacing: -.095em; overflow-wrap: normal; }
   .login-copy .eyebrow { font-size: .61rem; letter-spacing: .11em; }
   .login-copy p { font-size: .94rem; max-width: none; }
   .login-office-art { height: 235px; left: 1.25rem; object-position: 50% 48%; right: auto; top: 5.5rem; width: calc(100% - 2.5rem); }
   .hero-wordmark .brand-wordmark-type { font-size: 1.45rem; }
-  .login-brand-mark { height: 96px; width: 96px; }
+  .login-brand-lockup { margin-bottom: 1.9rem; }
+  .login-brand-mark { height: 88px; width: 88px; }
+  .login-card { min-height: calc(100vh - 4rem); }
   .login-card h2 { font-size: clamp(1.75rem, 9vw, 2.35rem); }
-  .inline-form, .hero-row, .run-strip, .portal-footer { align-items: stretch; flex-direction: column; }
+  .inline-form, .hero-row, .run-strip { align-items: stretch; flex-direction: column; }
   .portal-main { padding-top: 2rem; }
   .hero-row { gap: 1.3rem; }
   .hero-row .button, .hero-row .pair-action { width: 100%; }

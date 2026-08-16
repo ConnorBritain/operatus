@@ -28,9 +28,9 @@ Restricted Munder/LimeZu tiles, maps, base character sheets, recolors, screensho
 ### Freestanding portal mark
 
 - Runtime asset: `apps/portal/public/operatus-mark-transparent.png` (1024×1024).
-- SHA-256: `b5012602a38cd876ba84c0cce43f3d093006b99882a1ed68154612c16e23116c`.
+- SHA-256: `2ac346b81a3c86df50adddbb626924aee96f19ca679406134fc4c0e8c380df75`.
 - Source: the adopted `apps/portal/public/operatus-icon.png`; no generative restyling was accepted.
-- Production processing: the uniform warm-cream border color was sampled and removed with the image-generation skill's chroma-key helper, using a soft alpha edge and no despill so the coral gem, teal plant, cream cup, sparkles, and four status colors remain faithful to the canonical icon.
+- Production processing: the uniform warm-cream border color was sampled and removed with the image-generation skill's chroma-key helper using a hard eight-point tolerance and no despill. The hard alpha edge corrects the earlier washed-out portal rendering by keeping the coral gem, teal plant, cream cup, sparkles, and four status colors fully opaque and saturated.
 - Intended use: a borderless identity mark over the hosted sign-in surface. The original opaque icon remains authoritative for dock, favicon, PWA, and social uses.
 
 ## Hosted portal collaboration scene — 2026-08-16

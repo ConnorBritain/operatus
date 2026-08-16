@@ -40,18 +40,18 @@ function LoginPage() {
           width="1448"
         />
         <div className="login-copy">
-          <span className="eyebrow">The firm, in motion</span>
-          <h1>Every branch.<br />One firm.</h1>
-          <p>Watch each machine, follow the work as it moves, and step in from wherever you are.</p>
+          <span className="eyebrow">Branch by branch, from any device</span>
+          <h1>Scale your agent operations without scaling your attention.</h1>
+          <p>Operatus is an AI operator for running work across every machine—whether you grow one powerful Branch or add many.</p>
         </div>
       </section>
       <section className="login-panel">
         <div className="login-panel-inner">
-          <div className="login-brand-lockup">
-            <img aria-hidden="true" className="login-brand-mark" height="1024" src="/operatus-mark-transparent.png" width="1024" />
-            <BrandWordmark />
-          </div>
           <div className="login-card pixel-panel">
+            <div className="login-brand-lockup">
+              <img aria-hidden="true" className="login-brand-mark" height="1024" src="/operatus-mark-transparent.png?v=coral-2" width="1024" />
+              <BrandWordmark />
+            </div>
             <div className="login-card-heading">
               <span className="eyebrow">Agent firm control</span>
               <h2>Welcome back</h2>
@@ -240,10 +240,6 @@ export default async function Home({ searchParams }: PageProps) {
           </section>
         )}
 
-        <footer className="portal-footer">
-          <span><i className="presence-dot online" /> Identity-bound control plane</span>
-          <span>Each branch is one machine · Commands expire in five minutes</span>
-        </footer>
       </main>
     </div>
   );
