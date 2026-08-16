@@ -87,7 +87,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      enroll_ventura_node: {
+      enroll_operatus_node: {
         Args: {
           invitation_code_hash: string;
           node_token_hash: string;
@@ -101,7 +101,7 @@ export type Database = {
         };
         Returns: string;
       };
-      claim_ventura_commands: {
+      claim_operatus_commands: {
         Args: { node_token_hash: string; command_limit?: number };
         Returns: Array<{
           id: string;
@@ -113,7 +113,7 @@ export type Database = {
           run_projection_id: string | null;
         }>;
       };
-      revoke_ventura_node: {
+      revoke_operatus_node: {
         Args: {
           target_node_id: string;
           actor_user_id: string;

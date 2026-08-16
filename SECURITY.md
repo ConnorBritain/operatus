@@ -2,9 +2,9 @@
 
 ## Scope
 
-Ventura is a local-first desktop application that spawns CLI coding agents in PTYs and works in repositories a user selects. Its Gauntlet control socket is local-only, permission-restricted, size-bounded, and requires a Conductor or per-launch scoped token. The renderer has no direct Node access and cannot impersonate workers, Critics, or Conductor acknowledgments.
+Operatus is a local-first desktop application that spawns CLI coding agents in PTYs and works in repositories a user selects. Its Gauntlet control socket is local-only, permission-restricted, size-bounded, and requires a Conductor or per-launch scoped token. The renderer has no direct Node access and cannot impersonate workers, Critics, or Conductor acknowledgments.
 
-Optional Slack, webhook, voice, integration, update, and analytics features can use the network when explicitly configured. Updater and analytics destinations are disabled by default for the Ventura milestone. A future remote portal must use authenticated device pairing, encrypted envelopes, replay protection, redaction policy, and destination-side authority checks; no unauthenticated listener or automatic public tunnel is permitted.
+Optional Slack, webhook, voice, integration, update, and analytics features can use the network when explicitly configured. Updater and analytics destinations are disabled by default for the Operatus milestone. A future remote portal must use authenticated device pairing, encrypted envelopes, replay protection, redaction policy, and destination-side authority checks; no unauthenticated listener or automatic public tunnel is permitted.
 
 ## Supported versions
 
@@ -12,7 +12,7 @@ Security fixes currently target `main` and the active milestone branch only. No 
 
 ## Reporting a vulnerability
 
-Do not open a public issue containing exploit details. Use GitHub's **Security → Report a vulnerability** flow for [ConnorBritain/ventura](https://github.com/ConnorBritain/ventura/security/advisories/new). Include reproduction steps, affected revision, impact, and any suggested mitigation.
+Do not open a public issue containing exploit details. Use GitHub's **Security → Report a vulnerability** flow for [ConnorBritain/operatus](https://github.com/ConnorBritain/operatus/security/advisories/new). Include reproduction steps, affected revision, impact, and any suggested mitigation.
 
 ## Reviewer priorities
 

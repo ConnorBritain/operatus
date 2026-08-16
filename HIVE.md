@@ -1,6 +1,6 @@
 # The Hive — autonomous multi-agent layer
 
-> How Ventura turns a room full of independent CLI agents
+> How Operatus turns a room full of independent CLI agents
 > processes into a collaborating, self-coordinating team with persistent memory,
 > a shared blackboard, and a "god" orchestrator that runs the floor.
 
@@ -155,7 +155,8 @@ A fixed, always-on agent seated at `desk-ceo` (the lead studio), flagged
 - **Roster & routing** (`registry.json`): who exists, their capabilities, status.
 - **Adjudication**: read each outbound request; resolve routine ones itself
   (answer clarifications, route to the right specialist with a self-contained
-  task spec), escalate only critical ones. This is "god mode."
+  task spec), escalate only critical ones. This is Conductor authority; `isGod`
+  remains only as an internal compatibility field inherited from upstream.
 - **Blackboard scribe**: the single writer of `board.md`, so shared plans never
   conflict.
 - **Task ledger** (`tasks.json`): assign, track, retry, checkpoint.

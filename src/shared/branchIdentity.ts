@@ -1,5 +1,5 @@
 /**
- * Visual identity for one Ventura execution branch (a daemon/workspace pair).
+ * Visual identity for one Operatus execution branch (a daemon/workspace pair).
  * Branch themes are presentation only: they never alter provider, artifact,
  * authority, or Gauntlet protocol behavior.
  */
@@ -39,7 +39,7 @@ export const BRANCH_THEMES: readonly BranchThemeDefinition[] = [
   { id: 'sol', label: 'Sol', accent: '#d18a55', wash: '#f2ddca', ink: '#70472b' }
 ] as const;
 
-export const DEFAULT_BRANCH_PROFILE: BranchProfile = { name: 'Main Studio', themeId: 'cedar' };
+export const DEFAULT_BRANCH_PROFILE: BranchProfile = { name: 'Main Branch', themeId: 'cedar' };
 
 export function branchTheme(id: BranchThemeId): BranchThemeDefinition {
   return BRANCH_THEMES.find((theme) => theme.id === id) ?? BRANCH_THEMES[0];

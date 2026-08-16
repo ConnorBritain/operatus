@@ -1,4 +1,4 @@
-<!-- Thanks for contributing to Ventura! -->
+<!-- Thanks for contributing to Operatus! -->
 
 ## What & why
 

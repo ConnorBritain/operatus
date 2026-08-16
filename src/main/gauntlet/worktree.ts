@@ -100,7 +100,7 @@ export class ArtifactWorkspace {
       git(workspace.path, ['switch', '--detach']);
     }
     const boundedReason = reason.replace(/[\r\n]+/g, ' ').slice(0, 240) || 'failed Gauntlet launch';
-    git(workspace.repository, ['worktree', 'lock', '--reason', `Ventura: ${boundedReason}`, workspace.path]);
+    git(workspace.repository, ['worktree', 'lock', '--reason', `Operatus: ${boundedReason}`, workspace.path]);
   }
 
   private assertWorkspace(path: string, expectedSha: string, requireClean: boolean): void {
@@ -223,7 +223,7 @@ function assertSafeId(value: string, label: string): void {
 }
 
 function assertSafeBranch(value: string): void {
-  if (!/^ventura\/gauntlet\/[a-zA-Z0-9._/-]+$/.test(value) || value.includes('..') || value.endsWith('/')) {
+  if (!/^operatus\/gauntlet\/[a-zA-Z0-9._/-]+$/.test(value) || value.includes('..') || value.endsWith('/')) {
     throw new GauntletInvariantError('unsafe candidate branch');
   }
 }

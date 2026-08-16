@@ -21,7 +21,7 @@ interface ControlRequest {
 }
 
 /**
- * Authenticated, line-delimited local control plane used by Ventura-launched
+ * Authenticated, line-delimited local control plane used by Operatus-launched
  * agents. It deliberately binds only to an OS socket — never TCP — and accepts
  * one bounded JSON command per connection. The backend remains the sole source
  * of validation and the SQLite store remains the sole run authority.
@@ -42,7 +42,7 @@ export class GauntletControlServer {
       // Linux and named pipes on Windows. Windows requires the canonical pipe
       // namespace; a drive-letter filesystem path is not a valid endpoint.
       socketPath: process.platform === 'win32'
-        ? `\\\\.\\pipe\\ventura-gauntlet-${createHash('sha256').update(stateRoot).digest('hex').slice(0, 24)}`
+        ? `\\\\.\\pipe\\operatus-gauntlet-${createHash('sha256').update(stateRoot).digest('hex').slice(0, 24)}`
         : join(controlRoot, 'gauntlet.sock'),
       conductorToken: loadOrCreateToken(join(controlRoot, 'conductor-token'))
     };

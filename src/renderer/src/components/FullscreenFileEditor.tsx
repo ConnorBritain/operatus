@@ -79,7 +79,7 @@ export function FullscreenFileEditor() {
           color: 'var(--cth-ink-900)'
         }}
       >
-        VENTURA · FILE
+        OPERATUS · FILE
         <span
           className="cth-titlebar-nodrag"
           style={{

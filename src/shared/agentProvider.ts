@@ -263,14 +263,14 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     defaultCommand: 'kimi',
     commandGroups: [],
     // Kimi --auto handles every approval and does not stop to ask questions,
-    // matching Ventura's autonomous Claude/Codex default.
+    // matching Operatus's autonomous Claude/Codex default.
     autoModeFlag: '--auto',
     autoFlag: '--auto',
     supportsModel: true,
     modelFlag: '--model',
     hiveAware: false,
     // Kimi's interactive TUI has no positional initial-prompt form. It supports
-    // lifecycle hooks, but Ventura does not yet install a Kimi hook bridge,
+    // lifecycle hooks, but Operatus does not yet install a Kimi hook bridge,
     // so mail must bounce rather than being delivered with no drain path.
     canReceiveInbox: false
   },

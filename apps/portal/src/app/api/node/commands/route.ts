@@ -6,7 +6,7 @@ export async function GET(request: NextRequest) {
   const identity = await authenticateNode(request);
   if (!identity) return NextResponse.json({ error: "NODE_UNAUTHENTICATED" }, { status: 401 });
 
-  const { data, error } = await identity.admin.rpc("claim_ventura_commands", {
+  const { data, error } = await identity.admin.rpc("claim_operatus_commands", {
     node_token_hash: identity.tokenHash,
     command_limit: 20,
   });

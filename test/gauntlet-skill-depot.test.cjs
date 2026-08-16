@@ -13,11 +13,11 @@ const { SkillDepot } = loadTs('src/main/gauntlet/skillDepot.ts');
 function git(cwd, args) { return execFileSync('git', args, { cwd, encoding: 'utf8' }).trim(); }
 
 test('Skill Depot pins manually, locks receipts, materializes support files read-only, and rejects symlinks', () => {
-  const root = mkdtempSync(join(tmpdir(), 'ventura-skill-depot-'));
+  const root = mkdtempSync(join(tmpdir(), 'operatus-skill-depot-'));
   const source = join(root, 'source.git');
   execFileSync('git', ['init', '-b', 'main', source]);
-  git(source, ['config', 'user.name', 'Ventura Test']);
-  git(source, ['config', 'user.email', 'ventura@example.invalid']);
+  git(source, ['config', 'user.name', 'Operatus Test']);
+  git(source, ['config', 'user.email', 'operatus@example.invalid']);
   const skill = join(source, 'skills', 'engineering', 'review-well');
   mkdirSync(skill, { recursive: true });
   writeFileSync(join(skill, 'SKILL.md'), '---\nname: review-well\ndescription: Review carefully\n---\nRead support.md.\n');

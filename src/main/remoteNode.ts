@@ -10,9 +10,9 @@ import type {
 } from '../shared/remoteNode';
 import { projectRemoteSnapshot } from './gauntlet/remoteProjection';
 
-const DEFAULT_PORTAL_URL = 'https://england-ventura.vercel.app';
+const DEFAULT_PORTAL_URL = 'https://operatus.vercel.app';
 const DEFAULT_SYNC_INTERVAL_MS = 15_000;
-export const REMOTE_NODE_SECRET_REF = 'ventura.remote.node-token.v1';
+export const REMOTE_NODE_SECRET_REF = 'operatus.remote.node-token.v1';
 
 interface RemoteCommand {
   id: string;
@@ -38,7 +38,7 @@ interface RemoteNodeDependencies {
   syncIntervalMs?: number;
 }
 
-export class VenturaRemoteNode {
+export class OperatusRemoteNode {
   private readonly fetcher: typeof globalThis.fetch;
   private readonly syncIntervalMs: number;
   private timer: NodeJS.Timeout | null = null;
@@ -255,7 +255,7 @@ export class VenturaRemoteNode {
         if (!snapshot || !command.localRunId) return { status: 'rejected', acknowledgment: { reason: 'run_not_found' } };
         const terminal = ['passed', 'human_required', 'infrastructure_failure', 'cancelled'].includes(snapshot.run.status);
         if (terminal) return { status: 'rejected', acknowledgment: { reason: 'run_already_terminal' } };
-        const cancelled = this.deps.cancelRun(command.localRunId, 'Cancelled by an authenticated Ventura portal operator');
+        const cancelled = this.deps.cancelRun(command.localRunId, 'Cancelled by an authenticated Operatus portal operator');
         return { status: 'accepted', acknowledgment: { runVersion: cancelled.run.version, status: cancelled.run.status } };
       }
       return { status: 'rejected', acknowledgment: { reason: 'operation_not_supported_by_this_build' } };

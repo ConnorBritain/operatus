@@ -71,6 +71,6 @@ export function hasOssQuickPicks(provider: AgentProvider): boolean {
 
 /** Stable project documentation links for local-model setup. */
 export const OSS_BLOG_LINKS = {
-  openModels: 'https://github.com/ConnorBritain/ventura#requirements',
-  macMini: 'https://github.com/ConnorBritain/ventura#development'
+  openModels: 'https://github.com/ConnorBritain/operatus#requirements',
+  macMini: 'https://github.com/ConnorBritain/operatus#development'
 } as const;

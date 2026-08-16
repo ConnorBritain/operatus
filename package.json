@@ -1,14 +1,14 @@
 {
-  "name": "ventura",
+  "name": "operatus",
   "version": "0.1.0",
   "private": true,
   "description": "A local-first operations floor for conducted, independently critiqued coding agents working against exact Git artifacts.",
   "main": "out/main/index.js",
   "author": "Connor Britain",
-  "homepage": "https://github.com/ConnorBritain/ventura",
+  "homepage": "https://github.com/ConnorBritain/operatus",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ConnorBritain/ventura.git"
+    "url": "https://github.com/ConnorBritain/operatus.git"
   },
   "scripts": {
     "dev": "electron-vite dev",
@@ -22,7 +22,7 @@
     "test:gauntlet": "ELECTRON_RUN_AS_NODE=1 electron --test test/gauntlet-core.test.cjs test/gauntlet-backend.test.cjs test/gauntlet-worktree.test.cjs test/gauntlet-skill-depot.test.cjs test/remote-node.test.cjs test/supabase-migrations.test.cjs",
     "test:focused": "node --test test/codex-remote.test.cjs test/control.test.cjs test/provider-automation.test.cjs test/provider-config.test.cjs test/queue-delivery.test.cjs test/terminal-automation.test.cjs test/terminal-recovery.test.cjs test/roster.test.cjs test/proc-kill.test.cjs test/expand-tilde.test.cjs test/hive-cwd.test.cjs test/hive-hook-node.test.cjs test/hive-roster-injection.test.cjs test/hive-runtime-path.test.cjs test/cli-install-ladder.test.cjs test/node-install.test.cjs test/office-gl-recovery.test.cjs test/update-state.test.cjs test/transcript-project-dir.test.cjs test/commit-graph.test.cjs test/voice-messages.test.cjs",
     "check:links": "node tools/check-release-links.cjs",
-    "check:ventura-assets": "node tools/check-ventura-assets.cjs",
+    "check:operatus-assets": "node tools/check-operatus-assets.cjs",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",
     "dist:win": "npm run build && electron-builder --win",

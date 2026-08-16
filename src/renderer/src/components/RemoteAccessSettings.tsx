@@ -16,7 +16,7 @@ const labelStyle: CSSProperties = {
 
 export function RemoteAccessSettings() {
   const [status, setStatus] = useState<RemoteNodeStatus | null>(null);
-  const [portalUrl, setPortalUrl] = useState('https://england-ventura.vercel.app');
+  const [portalUrl, setPortalUrl] = useState('https://operatus.vercel.app');
   const [nodeName, setNodeName] = useState('');
   const [pairingCode, setPairingCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -56,8 +56,8 @@ export function RemoteAccessSettings() {
     <section style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
         <div>
-          <div style={labelStyle}>Remote studio</div>
-          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--cth-ink-900)' }}>Connect this office to your private Ventura portal</div>
+          <div style={labelStyle}>Remote branch</div>
+          <div style={{ marginTop: 4, fontSize: 13, color: 'var(--cth-ink-900)' }}>Connect this machine branch to your private Operatus portal</div>
           <div style={{ marginTop: 3, fontSize: 12, lineHeight: '17px', color: 'var(--cth-ink-500)' }}>
             This machine only makes outbound encrypted requests. Repository paths, prompts, code, credentials, and full check output stay local.
           </div>

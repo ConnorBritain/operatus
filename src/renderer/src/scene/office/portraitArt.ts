@@ -1,4 +1,4 @@
-// Procedural portraits for Ventura's neutral operations-floor cast.
+// Procedural portraits for Operatus's neutral operations-floor cast.
 //
 // These are fully custom-drawn neutral role busts: each
 // character is an explicit recipe layering skin → clothing → face → facial hair

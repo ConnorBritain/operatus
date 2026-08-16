@@ -13,7 +13,7 @@ const themes: BranchTheme[] = ["cedar", "harbor", "saffron", "juniper", "clay", 
 const noticeCopy: Record<string, string> = {
   "profile-saved": "Profile updated.",
   "preferences-saved": "Appearance and defaults updated.",
-  "workspace-saved": "Workspace name updated.",
+  "workspace-saved": "Firm name updated.",
   "machine-saved": "Machine branch updated.",
   "profile-invalid": "Enter a display name between 1 and 120 characters.",
   "preferences-invalid": "One or more preferences were not recognized.",
@@ -85,7 +85,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
           <header className="settings-title">
             <span className="eyebrow">Personal controls</span>
             <h1>Settings</h1>
-            <p>Presentation follows you across clients. Execution settings stay with the branch that owns them.</p>
+            <p>Presentation follows you across clients. Each branch still owns its local execution settings.</p>
           </header>
           {notice ? <p className="settings-notice" role="status">{notice}</p> : null}
 
@@ -137,7 +137,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
                   <div className="settings-card pixel-panel" key={workspace.id}>
                     <form action={saveWorkspace} className="workspace-name-form">
                       <input type="hidden" name="workspaceId" value={workspace.id} />
-                      <label>Workspace name<input name="name" defaultValue={workspace.name} maxLength={120} disabled={!canEdit} /></label>
+                      <label>Firm name<input name="name" defaultValue={workspace.name} maxLength={120} disabled={!canEdit} /></label>
                       {canEdit ? <button className="button secondary" type="submit">Rename</button> : null}
                     </form>
                     <div className="machine-settings-list">
@@ -174,7 +174,7 @@ export default async function SettingsPage({ searchParams }: SettingsPageProps) 
             <div className="settings-card pixel-panel truthful-grid">
               <article><span className="status-chip local">Local</span><h3>Claude Code & Codex</h3><p>Authentication, account details, models, and usage remain on the machine. They are never inferred from your web identity.</p></article>
               <article><span className="status-chip local">Local</span><h3>Git & worktrees</h3><p>Repository access and worktree defaults stay under the branch daemon’s control. The portal receives only explicitly shared projections.</p></article>
-              <article><span className="status-chip planned">Planned</span><h3>Corporate library</h3><p>A future company layer can distribute pinned skills, policies, and sealed ventures. Every branch will revalidate them locally.</p></article>
+              <article><span className="status-chip planned">Planned</span><h3>Firm intelligence</h3><p>A future firm layer can distribute pinned skills, policies, shared knowledge, and sealed ventures. Every branch will revalidate them locally.</p></article>
             </div>
           </section>
 

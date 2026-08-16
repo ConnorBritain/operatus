@@ -1,10 +1,10 @@
-# Ventura Gauntlet architecture synthesis
+# Operatus Gauntlet architecture synthesis
 
 ## SOURCE SYNTHESIS
 
 The original Gauntlet Loop freezes an external, observable bar before implementation; separates builders from fresh critics; evaluates the real artifact; and repeats only while material improvement remains. Claude of Duty demonstrates that parallel fanout is useful for separable work but sequential ownership is safer for coupled systems. Autoresearch contributes bounded experiments, immutable evaluation, and exact recorded outcomes. LLM Council contributes independent opinions plus a separate synthesizing authority.
 
-Roadmap turns those ideas into a deterministic protocol around probabilistic agents. Agent Primitives separates portable behavior contracts from harness packaging. Munder supplies the local desktop runtime. Ventura composes these layers rather than treating one repository as a template for all concerns.
+Roadmap turns those ideas into a deterministic protocol around probabilistic agents. Agent Primitives separates portable behavior contracts from harness packaging. Munder supplies the local desktop runtime. Operatus composes these layers rather than treating one repository as a template for all concerns.
 
 ## EXISTING MUNDER ARCHITECTURE
 
@@ -14,9 +14,9 @@ The reusable runtime is strong, but its orchestration is largely prompt- and fil
 
 ## AGENT PRIMITIVES CATALOG / CONTRACTS
 
-Primitive kind describes the promise: reviewer, transformer, author, investigator, or planner. Surface describes packaging: agent, skill, command, or hook. Reviewer isolation and read-only behavior are load-bearing, and Ventura records whether each provider enforces them or merely receives an advisory prompt.
+Primitive kind describes the promise: reviewer, transformer, author, investigator, or planner. Surface describes packaging: agent, skill, command, or hook. Reviewer isolation and read-only behavior are load-bearing, and Operatus records whether each provider enforces them or merely receives an advisory prompt.
 
-The initial General Engineering Critic composes Ventura correctness review with `verification-critic` and `architecture-reviewer`. It remains one fresh critic process for the first vertical slice and returns receipts for both typed primitives.
+The initial General Engineering Critic composes Operatus correctness review with `verification-critic` and `architecture-reviewer`. It remains one fresh critic process for the first vertical slice and returns receipts for both typed primitives.
 
 ## REUSABLE COMPONENTS
 
@@ -42,7 +42,7 @@ The initial General Engineering Critic composes Ventura correctness review with 
 
 ## AGENT PRIMITIVES TO REUSE
 
-Agent Primitives is pinned as a submodule. Ventura validates the harness-neutral source, creates a resolution receipt, and composes the prompt at launch. A local-path override may be configured for development, but does not change the committed pin or run receipt.
+Agent Primitives is pinned as a submodule. Operatus validates the harness-neutral source, creates a resolution receipt, and composes the prompt at launch. A local-path override may be configured for development, but does not change the committed pin or run receipt.
 
 ## ROADMAP IMPLEMENTATION DETAILS NOT TO COPY BLINDLY
 
@@ -60,7 +60,7 @@ The Conductor owns intent and final judgment. Builders do not grade themselves. 
 - Normal worktree cleanup is unsafe for Gauntlet work and must remain separate.
 - Hive, localStorage, and the visual floor are projections, not authority.
 - Remote access introduces identity, encryption, redaction, and replay risks.
-- Upstream updater/telemetry and restricted assets cannot ship under Ventura identity.
+- Upstream updater/telemetry and restricted assets cannot ship under Operatus identity.
 
 ## PROPOSED GAUNTLET DOMAIN MODEL
 

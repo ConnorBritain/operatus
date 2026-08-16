@@ -68,7 +68,7 @@ export class LocalGauntletBackend {
       id,
       repository,
       objective: input.objective,
-      branch: `ventura/gauntlet/${id}`,
+      branch: `operatus/gauntlet/${id}`,
       baseSha,
       limits: input.limits,
       providers: input.providers
@@ -92,7 +92,7 @@ export class LocalGauntletBackend {
   reconcileAfterRestart(): GauntletRunSnapshot[] {
     return this.store.listRecoverableRuns().map((run) => {
       if (['implementer_in_flight', 'critic_in_flight', 'repair_in_flight'].includes(run.status)) {
-        return this.infrastructureFailure(run.id, `Ventura restarted while ${run.status.replaceAll('_', ' ')}`, true);
+        return this.infrastructureFailure(run.id, `Operatus restarted while ${run.status.replaceAll('_', ' ')}`, true);
       }
       return this.status(run.id);
     });

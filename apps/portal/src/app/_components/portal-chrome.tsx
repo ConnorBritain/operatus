@@ -7,8 +7,8 @@ type WorkspaceLink = { id: string; name: string };
 export function BrandMark({ compact = false }: { compact?: boolean }) {
   return (
     <Link className={`brand-lockup${compact ? " compact" : ""}`} href="/">
-      <Image className="canonical-mark" src="/ventura-icon.png" alt="" width={compact ? 42 : 54} height={compact ? 42 : 54} priority />
-      <span>Ventura</span>
+      <Image className="canonical-mark" src="/operatus-icon.png" alt="" width={compact ? 42 : 54} height={compact ? 42 : 54} priority />
+      <span>Operatus</span>
     </Link>
   );
 }
@@ -44,7 +44,7 @@ export function PortalHeader({
   return (
     <header className="topbar">
       <BrandMark compact />
-      <nav className="workspace-switcher" aria-label="Workspaces">
+      <nav className="workspace-switcher" aria-label="Firms">
         {workspaces.map((workspace) => (
           <Link key={workspace.id} className={workspace.id === selectedWorkspaceId ? "active" : ""} href={`/?workspace=${workspace.id}`}>
             {workspace.name}

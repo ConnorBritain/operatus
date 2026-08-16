@@ -289,7 +289,7 @@ export interface HarnessConfig {
    *  harness agents only; the user's global Claude theme is never touched. */
   terminalTheme?: 'light' | 'dark';
   /** Anonymous product analytics (PostHog) — the exact events/properties are
-   *  documented in TELEMETRY.md. Default OFF for Ventura; builds
+   *  documented in TELEMETRY.md. Default OFF for Operatus; builds
    *  without an injected key and environments with DO_NOT_TRACK set never send
    *  regardless of this flag. (Mirrored in preload + renderer config.) */
   telemetryEnabled?: boolean;
@@ -304,7 +304,7 @@ export interface HarnessConfig {
   /** Visual identities keyed by harness-home path. This makes workspace/device
    *  branches immediately distinguishable without changing protocol behavior. */
   branchProfiles?: Record<string, BranchProfile>;
-  /** Outbound-only connection to the hosted Ventura portal. The node bearer
+  /** Outbound-only connection to the hosted Operatus portal. The node bearer
    *  token is never stored here; it lives encrypted in Electron safeStorage. */
   remoteNode?: RemoteNodeConfig;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the

@@ -35,9 +35,9 @@ const FEATURES: Feature[] = [
   },
   {
     icon: 'gear',
-    label: 'MICHAEL IS YOUR CLONE',
-    desc: 'Your clone runs the floor — triages requests, routes tasks, and escalates only what needs you.',
-    descPlain: 'Your clone, Conductor, takes your requests, hands work to the right agent, and only interrupts you when it matters.',
+    label: 'YOUR CONDUCTOR LEADS',
+    desc: 'The Conductor runs the floor — triages requests, routes tasks, and escalates only what needs you.',
+    descPlain: 'Your Conductor takes requests, hands work to the right agent, and only interrupts you when it matters.',
     tint: 'var(--cth-sky-light)', edge: 'var(--cth-sky)'
   },
   {
@@ -189,7 +189,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         <PixelPanel
           variant="dialog"
           title={
-            step === 'persona' ? 'WELCOME TO VENTURA'
+            step === 'persona' ? 'WELCOME TO OPERATUS'
             : step === 'welcome' ? 'MEET YOUR OFFICE'
             : step === 'home' ? (plain ? 'STEP 1 OF 4 · A HOME FOR THE APP' : 'STEP 1 OF 4 · HARNESS HOME')
             : step === 'orchestrator' ? (plain ? "STEP 2 OF 4 · YOUR CLONE" : "STEP 2 OF 4 · YOUR CLONE'S ENGINE")
@@ -217,7 +217,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       A CLONE OF YOU, WORKING 24/7
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '19px' }}>
-                      Ventura turns the CLI agent you already use into a clone of you —
+                      Operatus turns the CLI agent you already use into a clone of you —
                       one that runs an office of long-running agents and keeps working while
                       you're away. It manages everything around them: context, memory, tasks,
                       triggers, environment, files, and integrations.
@@ -600,7 +600,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <ToggleRow
                   icon="info"
                   label="SHARE ANONYMOUS USAGE STATS"
-                  desc="A handful of anonymous events (app opened, agent spawned, feature used) that help improve Ventura — never prompts, code, file paths, or agent output. Full list in TELEMETRY.md; change anytime in Settings."
+                  desc="A handful of anonymous events (app opened, agent spawned, feature used) that help improve Operatus — never prompts, code, file paths, or agent output. Full list in TELEMETRY.md; change anytime in Settings."
                   on={shareStats}
                   tint="var(--cth-lemon-light)"
                   edge="var(--cth-lemon)"

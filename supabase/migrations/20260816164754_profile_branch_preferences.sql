@@ -130,7 +130,7 @@ begin
   insert into public.workspaces (id, name, slug, created_by)
   values (
     workspace_id,
-    left(account_name || '''s company', 120),
+    left(account_name || '''s firm', 120),
     'personal-' || left(replace(new.id::text, '-', ''), 12),
     new.id
   );

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
   const nodeToken = newNodeToken();
   const admin = createAdminClient();
-  const { data, error } = await admin.rpc("enroll_ventura_node", {
+  const { data, error } = await admin.rpc("enroll_operatus_node", {
     invitation_code_hash: secretHash(normalizePairingCode(parsed.data.code)),
     node_token_hash: secretHash(nodeToken),
     node_name: parsed.data.name,

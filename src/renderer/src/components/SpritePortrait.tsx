@@ -14,7 +14,7 @@ export interface SpritePortraitProps {
   background?: string;
 }
 
-/** Static standing portrait of an Ventura floor operator. */
+/** Static standing portrait of an Operatus floor operator. */
 export function SpritePortrait({
   character,
   scale = 2,

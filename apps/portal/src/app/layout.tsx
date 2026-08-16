@@ -2,16 +2,16 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://england-ventura.vercel.app"),
-  title: "Ventura — Venture Control",
-  description: "An identity-bound operations floor for your branches and agent ventures.",
-  applicationName: "Ventura",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://operatus.vercel.app"),
+  title: "Operatus — Agent Firm Control",
+  description: "An identity-bound operations floor for a scalable agent firm.",
+  applicationName: "Operatus",
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/ventura-icon-192.png", apple: "/apple-touch-icon.png" },
+  icons: { icon: "/operatus-icon-192.png", apple: "/apple-touch-icon.png" },
   openGraph: {
-    title: "Ventura — Venture Control",
-    description: "Drop into your machine branches and agent ventures from anywhere.",
-    images: [{ url: "/ventura-icon.png", width: 1024, height: 1024, alt: "Ventura mark" }],
+    title: "Operatus — Agent Firm Control",
+    description: "Direct machine branches and agent ventures from anywhere.",
+    images: [{ url: "/operatus-icon.png", width: 1024, height: 1024, alt: "Operatus mark" }],
   },
 };
 

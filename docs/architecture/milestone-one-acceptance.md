@@ -2,7 +2,7 @@
 
 This record distinguishes shipped milestone-one behavior from deliberately
 sequenced roadmap work. It is an engineering receipt, not a claim that every
-future Ventura surface is already delivered.
+future Operatus surface is already delivered.
 
 ## Accepted milestone behavior
 
@@ -17,7 +17,7 @@ future Ventura surface is already delivered.
 | Agent Primitives | clean pinned submodule, validated registry resolution, local override, and per-launch primitive receipts |
 | Skill Depot | manually synchronized pinned sources, Matt Pocock baseline, opt-in content, collision handling, digest locks, read-only materialization, and no install-script execution |
 | Observable desktop | Runs surface, exact artifacts/checks/findings/acknowledgments/repairs, role terminals, and floor projection |
-| Product and art independence | Ventura application profile, easel identity, original operations-floor assets, provenance inventory, and forbidden-name/hash guard |
+| Product and art independence | Operatus application profile, easel identity, original operations-floor assets, provenance inventory, and forbidden-name/hash guard |
 | Branch identity | twelve accessible built-in themes with a per-workspace name and persistent visual marker |
 | Verification | Gauntlet unit/integration suite, retained-runtime focused suite, node/web typechecks, production build, asset guard, macOS package, and packaged launch smoke |
 

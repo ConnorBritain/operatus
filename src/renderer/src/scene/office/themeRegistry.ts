@@ -1,15 +1,15 @@
-// Ventura floor theme contract. The scene engine remains the proven Munder
+// Operatus floor theme contract. The scene engine remains the proven Munder
 // Pixi/pathfinding implementation; the distributable map and art are clean-room
-// Original Ventura assets, loaded independently from historical theme packs.
+// Original Operatus assets, loaded independently from historical theme packs.
 
 import type { Texture } from 'pixi.js';
 import { colors } from '@/design/tokens';
 import { CAST_BY_NAME, getCastFrames, DEFAULT_CHARACTER, type CastMember, type OfficeCharacterName } from './cast';
-import venturaFloorUrl from '@/assets/ventura/ventura-operations-floor.png?url';
-import venturaMapRaw from '@/assets/maps/ventura-operations.tmj?raw';
+import operatusFloorUrl from '@/assets/operatus/operatus-operations-floor.png?url';
+import operatusMapRaw from '@/assets/maps/operatus-operations.tmj?raw';
 
 /** Legacy ids remain accepted as config aliases so an upstream profile import
- * cannot strand the renderer; every id resolves to the Ventura floor. */
+ * cannot strand the renderer; every id resolves to the Operatus floor. */
 export type ThemeId = 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
 export interface Tile { x: number; y: number }
 export type Facing = 'up' | 'down' | 'left' | 'right';
@@ -38,12 +38,12 @@ export interface ThemeConfig {
   cast: ThemeCast;
 }
 
-export const VENTURA_THEME: ThemeConfig = {
+export const OPERATUS_THEME: ThemeConfig = {
   // `office` is retained only as the persisted config key. Visually this is the
-  // clean-room Ventura operations floor.
+  // clean-room Operatus operations floor.
   id: 'office',
-  mapRaw: venturaMapRaw,
-  backgroundUrl: venturaFloorUrl,
+  mapRaw: operatusMapRaw,
+  backgroundUrl: operatusFloorUrl,
   tilesets: [],
   primarySeatNames: [
     'desk-ceo',
@@ -81,6 +81,6 @@ export const VENTURA_THEME: ThemeConfig = {
   }
 };
 
-export const OFFICE_THEME = VENTURA_THEME;
-export function getTheme(_id: ThemeId): ThemeConfig { return VENTURA_THEME; }
-export function allThemes(): ThemeConfig[] { return [VENTURA_THEME]; }
+export const OFFICE_THEME = OPERATUS_THEME;
+export function getTheme(_id: ThemeId): ThemeConfig { return OPERATUS_THEME; }
+export function allThemes(): ThemeConfig[] { return [OPERATUS_THEME]; }

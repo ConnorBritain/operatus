@@ -72,14 +72,14 @@ test("node revocation is atomic and callable only by the service role", () => {
 });
 
 test("the callable control-plane API is renamed without rewriting applied history", () => {
-  const rename = readMigration("_rename_ventura_rpcs.sql");
+  const rename = readMigration("_rename_operatus_rpcs.sql");
 
   for (const operation of ["enroll", "claim", "revoke"]) {
-    assert.match(rename, new RegExp(`rename to ${operation}_ventura_(?:node|commands)`));
+    assert.match(rename, new RegExp(`rename to ${operation}_operatus_(?:node|commands)`));
   }
-  assert.match(rename, /revoke all on function public\.enroll_ventura_node[\s\S]+from public, anon, authenticated/);
-  assert.match(rename, /grant execute on function public\.claim_ventura_commands[\s\S]+to service_role/);
-  assert.match(rename, /grant execute on function public\.revoke_ventura_node[\s\S]+to service_role/);
+  assert.match(rename, /revoke all on function public\.enroll_operatus_node[\s\S]+from public, anon, authenticated/);
+  assert.match(rename, /grant execute on function public\.claim_operatus_commands[\s\S]+to service_role/);
+  assert.match(rename, /grant execute on function public\.revoke_operatus_node[\s\S]+to service_role/);
 });
 
 test("personal preferences are self-scoped and a branch has one active machine", () => {
@@ -93,6 +93,6 @@ test("personal preferences are self-scoped and a branch has one active machine",
   assert.match(preferences, /create unique index nodes_one_active_per_branch_idx[\s\S]+on public\.nodes\(branch_id\)[\s\S]+where revoked_at is null/);
   assert.match(preferences, /grant select, insert, update on public\.user_preferences to authenticated/);
   assert.match(preferences, /grant select, insert, update, delete on public\.branch_preferences to authenticated/);
-  assert.match(preferences, /left\(account_name \|\| '''s company'/);
+  assert.match(preferences, /left\(account_name \|\| '''s firm'/);
   assert.doesNotMatch(preferences, /raw_user_meta_data[\s\S]+authorization/);
 });

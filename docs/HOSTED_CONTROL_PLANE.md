@@ -1,6 +1,6 @@
 # Hosted control plane operations
 
-Ventura's hosted portal is a responsive Next.js application in `apps/portal`. The reference production deployment is `https://england-ventura.vercel.app`, backed by the Supabase project identified by ref `bdoupypceewmjuozptgv`.
+Operatus's hosted portal is a responsive Next.js application in `apps/portal`. The reference production deployment is `https://operatus.vercel.app`, backed by the Supabase project identified by ref `bdoupypceewmjuozptgv`.
 
 ## Authority boundary
 
@@ -21,7 +21,7 @@ Copy `apps/portal/.env.example` to `apps/portal/.env.local` and provide:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
-- `VENTURA_NODE_TOKEN_PEPPER`
+- `OPERATUS_NODE_TOKEN_PEPPER`
 
 The secret key and token pepper are server-only. Never prefix them with `NEXT_PUBLIC_`, download them into an untrusted client, or commit them. Start and verify the portal with:
 
@@ -55,7 +55,7 @@ https://bdoupypceewmjuozptgv.supabase.co/auth/v1/callback
 The application callback is:
 
 ```text
-https://england-ventura.vercel.app/auth/callback
+https://operatus.vercel.app/auth/callback
 ```
 
 Production, preview, and localhost callback URLs must be explicitly allow-listed in Supabase. Do not use wildcard provider callbacks.
@@ -64,7 +64,7 @@ Production, preview, and localhost callback URLs must be explicitly allow-listed
 
 1. Sign in at the portal.
 2. Choose a branch and select **Pair a machine**.
-3. In the desktop app, open **Settings → Connections → Remote studio**.
+3. In the desktop app, open **Settings → Connections → Remote branch**.
 4. Enter the 12-character one-time code and a recognizable machine name.
 5. Confirm that both surfaces show the machine online.
 
@@ -75,7 +75,7 @@ The invitation expires after ten minutes and can be used once. The node receives
 - If pairing fails, create a new invitation; never reuse or extend an expired code.
 - If a node token may be exposed, revoke the node and pair it again.
 - Owners and admins can select **Disconnect machine** in the portal. Revocation atomically disables the node token, expires queued or delivered commands, and appends the acting user/device to the workspace audit history. The local machine retains its files and Git state but cannot reconnect until it is paired again.
-- Rotate `VENTURA_NODE_TOKEN_PEPPER` only with a planned re-pair of every node; hashes created with the old pepper will no longer authenticate.
+- Rotate `OPERATUS_NODE_TOKEN_PEPPER` only with a planned re-pair of every node; hashes created with the old pepper will no longer authenticate.
 - Rotate the Supabase secret key in Supabase and Vercel together, redeploy, verify `/api/health`, then revoke the old key.
 - OAuth client secrets live only in the provider and Supabase Auth configuration.
 
@@ -86,7 +86,7 @@ Every portal release must pass its tests, typecheck, and production build. After
 1. `GET /api/health` returns `status: ok` without authentication.
 2. An anonymous Data API request cannot list nodes.
 3. Google/GitHub sign-in returns through `/auth/callback` and registers the browser as a client device.
-4. A new user receives one personal workspace and Main studio branch.
+4. A new user receives one personal Firm and Main machine Branch.
 5. A pairing code enrolls exactly one node.
 6. The node sync contains no local path or private objective.
 7. A stale command is rejected and acknowledged without changing the local run.

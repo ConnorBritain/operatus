@@ -1,6 +1,6 @@
 # Remote floor: web and mobile direction
 
-A phone-accessible Ventura is feasible and should be treated as a first-class client of the run protocol, not as remote desktop streaming.
+A phone-accessible Operatus is feasible and should be treated as a first-class client of the run protocol, not as remote desktop streaming.
 
 ## Boundary
 
@@ -36,16 +36,16 @@ It must not grant arbitrary shell access, merge, push, change the frozen bar, in
 
 The Runs renderer consumes shared snapshots and ordered events rather than importing SQLite or main-process objects. `src/main/gauntlet/remoteProjection.ts` provides an explicit, least-information projection that removes local paths, authority tokens, check commands, event reasons, and human text unless an independent sharing policy enables the relevant field.
 
-The hosted foundation is now live: Supabase Auth and RLS provide user/workspace identity; Postgres stores branches, browser-device identities, paired nodes, redacted projections, narrow commands, and audit events; the responsive Vercel portal provides desktop/mobile views; and Ventura's outbound-only node connector pairs with a short-lived code, stores its token through OS encryption, syncs every 15 seconds, and locally revalidates commands. Browser-device cookies are HTTP-only identifiers rather than bearer authority, and every command still requires a valid Supabase user session plus current workspace membership. Owners and admins can revoke a paired node transactionally; the node token stops authenticating, pending commands expire, and the actor is audited without altering local files or Git state. `message_conductor` and `cancel_run` are active. Pause and human-gate operations remain reserved until their local state-machine semantics are implemented.
+The hosted foundation is now live: Supabase Auth and RLS provide user/workspace identity; Postgres stores branches, browser-device identities, paired nodes, redacted projections, narrow commands, and audit events; the responsive Vercel portal provides desktop/mobile views; and Operatus's outbound-only node connector pairs with a short-lived code, stores its token through OS encryption, syncs every 15 seconds, and locally revalidates commands. Browser-device cookies are HTTP-only identifiers rather than bearer authority, and every command still requires a valid Supabase user session plus current workspace membership. Owners and admins can revoke a paired node transactionally; the node token stops authenticating, pending commands expire, and the actor is audited without altering local files or Git state. `message_conductor` and `cancel_run` are active. Pause and human-gate operations remain reserved until their local state-machine semantics are implemented.
 
-## Multiple machines and office branches
+## Multiple machines and machine branches
 
-The topology is many clients to many execution nodes. Each macOS, Windows, or Linux machine runs an Ventura node that makes an outbound authenticated connection to a relay. A workspace contains named branches, and **one branch is one durable machine identity**. The branch name, theme, favorites, and history survive temporary disconnection or replacement pairing, but at most one non-revoked node may occupy it. The node exposes that machine's repositories and locally authoritative runs. Desktop, responsive web, PWA, iOS, and Android clients can switch among the branches their identity may access.
+The topology is many clients to many execution nodes. Each macOS, Windows, or Linux machine runs an Operatus node that makes an outbound authenticated connection to a relay. A workspace contains named branches, and **one branch is one durable machine identity**. The branch name, theme, favorites, and history survive temporary disconnection or replacement pairing, but at most one non-revoked node may occupy it. The node exposes that machine's repositories and locally authoritative runs. Desktop, responsive web, PWA, iOS, and Android clients can switch among the branches their identity may access.
 
 The relay carries presence, encrypted projections, and signed command envelopes. It never becomes artifact or run authority. Every command includes workspace, machine, run, device identity, nonce, expiry, idempotency key, expected run version, and narrow operation. The destination machine revalidates the command before changing local state and returns an auditable acknowledgment. Offline commands are limited to safe, explicitly queueable operations; shell input and approvals expire rather than waiting indefinitely.
 
 ```text
-company/workspace → branch (one machine) → repository → run → launch/artifact
+firm/workspace → branch (one machine) → repository → venture/run → launch/artifact
 ```
 
 This model supports several users observing several machines without conflating physical presence, UI presence, and protocol authority. A branch may have no active node while it is waiting to be paired, or one active node; it never groups several machines.
@@ -68,34 +68,34 @@ This yields a clear authority split:
 
 ### Twelve branch identities
 
-Every daemon/workspace pair has a presentation-only `BranchProfile`: a human name plus one of twelve built-in visual themes—Cedar, Harbor, Saffron, Juniper, Clay, Iris, Moss, Ember, Coast, Orchid, Slate, or Sol. The profile is shown consistently in the floor wash and border, persistent branch badge, machine switcher, run cards, terminal headers, presence map, notifications, and mobile navigation. Color is never the only signal; the name and theme label travel with it for accessibility and screenshots.
+Every machine Branch has a presentation-only `BranchProfile`: a human name plus one of twelve built-in visual themes—Cedar, Harbor, Saffron, Juniper, Clay, Iris, Moss, Ember, Coast, Orchid, Slate, or Sol. The profile is shown consistently in the floor wash and border, persistent Branch badge, machine switcher, run cards, terminal headers, presence map, notifications, and mobile navigation. Color is never the only signal; the name and theme label travel with it for accessibility and screenshots.
 
-Branch identity and organization skin are deliberately separate. A skin expresses the operator's overall brand; a branch theme distinguishes one machine/location from another inside that brand. Neither may affect provider settings, role capabilities, frozen contracts, artifacts, or protocol authority. The milestone-one desktop stores branch profiles by local workspace path; the remote protocol will replace that local lookup key with stable workspace and node IDs while preserving the same profile shape.
+Branch identity and organization skin are deliberately separate. A skin expresses the operator's overall brand; a Branch theme distinguishes one machine/location from another inside that brand. Neither may affect provider settings, role capabilities, frozen contracts, artifacts, or protocol authority. The desktop stores its local presentation by workspace path; the hosted directory binds the same presentation vocabulary to stable Firm, Branch, and node identities.
 
 ## Identity and deployment profiles
 
-Accounts are not required for a fully local installation. Ventura should support three compatible profiles:
+Accounts are not required for a fully local installation. Operatus should support three compatible profiles:
 
 | Profile | Human identity | Machine/client pairing | External dependency |
 |---|---|---|---|
 | Personal local | none | one-time QR invitation plus per-device keys | none on one LAN; optional private VPN away from it |
 | Self-hosted workspace | local accounts, passkeys, or operator-provided OIDC | workspace-issued device certificates | user-owned relay/directory |
-| Hosted workspace | email/passkey with optional Google or GitHub OAuth | hosted directory plus revocable device keys | Ventura-hosted identity and encrypted relay |
+| Hosted workspace | email/passkey with optional Google or GitHub OAuth | hosted directory plus revocable device keys | Operatus-hosted identity and encrypted relay |
 
 GitHub identity is optional and should grant repository/PR integration, not basic access to locally running agents. Human account identity, client device identity, machine node identity, and provider login are separate credentials with separate revocation. A signed-in client still cannot impersonate a Gauntlet role; it submits a narrow human command which the destination node revalidates and records.
 
 ## Tailscale-first personal fleet
 
-For an operator whose computers and phone already share a tailnet, Tailscale is the preferred zero-hosted-account path. Ventura's local gateway listens only on `127.0.0.1`; an explicit **Expose to my tailnet** setup action configures Tailscale Serve as a persistent HTTPS reverse proxy. Each branch remains directly addressable by its machine MagicDNS name, so a Samsung phone, Mac, or work laptop on the tailnet can reach it without a public listener, port-forwarding, or a Vercel account.
+For an operator whose computers and phone already share a tailnet, Tailscale is the preferred zero-hosted-account path. Operatus's local gateway listens only on `127.0.0.1`; an explicit **Expose to my tailnet** setup action configures Tailscale Serve as a persistent HTTPS reverse proxy. Each branch remains directly addressable by its machine MagicDNS name, so a Samsung phone, Mac, or work laptop on the tailnet can reach it without a public listener, port-forwarding, or a Vercel account.
 
-Ventura should detect `tailscale status --json`, explain the exact change, and ask before altering Serve configuration. It should then verify the resulting Serve status and show the HTTPS URL and a QR code. Disabling the integration removes only the Ventura-owned Serve route, never resets unrelated Serve configuration. The local gateway remains useful without Tailscale and continues to require Ventura's own device/session credentials as defense in depth.
+Operatus should detect `tailscale status --json`, explain the exact change, and ask before altering Serve configuration. It should then verify the resulting Serve status and show the HTTPS URL and a QR code. Disabling the integration removes only the Operatus-owned Serve route, never resets unrelated Serve configuration. The local gateway remains useful without Tailscale and continues to require Operatus's own device/session credentials as defense in depth.
 
 Tailscale is both transport and an optional identity signal, not the run authority:
 
 - use per-machine MagicDNS names for commands that must reach one exact branch; do not put artifact-changing commands behind a load-balanced service;
 - use tailnet grants for network access and, on supporting Tailscale versions, app capabilities for `observe`, `message`, `operate`, and `admin` scopes;
 - accept Tailscale identity/capability headers only on the loopback listener behind Serve, because a directly reachable backend would allow header spoofing;
-- retain Ventura's nonce, expiry, idempotency key, expected run version, device key, and local authorization checks;
+- retain Operatus's nonce, expiry, idempotency key, expected run version, device key, and local authorization checks;
 - support tagged unattended compute nodes as well as user-owned desktops; user identity headers and tagged-device capabilities have different semantics;
 - keep Tailscale Funnel disabled: personal-fleet mode is tailnet-only.
 
@@ -117,7 +117,7 @@ For a personal fleet of continuously running Windows and macOS nodes, the refere
 | Postgres | users, workspaces, memberships, devices, nodes, durable command/audit records |
 | Supabase Realtime | authenticated browser updates for nodes, projections, and commands |
 | Vercel HTTP functions | authenticated browser and outbound-node APIs |
-| Ventura node daemon | local provider processes, Git repositories, SQLite authority, command revalidation |
+| Operatus node daemon | local provider processes, Git repositories, SQLite authority, command revalidation |
 
 The first release deliberately uses short outbound HTTPS polling for nodes and Supabase Realtime for signed-in browser updates. Function instance memory is never used for membership, presence, pending commands, or run authority. A future streaming transport can replace polling without changing the durable schema or local validation boundary.
 

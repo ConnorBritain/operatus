@@ -45,13 +45,13 @@ for (const file of filesUnder(assetRoot)) {
 }
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
-if (pkg.name !== 'ventura') failures.push(`package name is ${JSON.stringify(pkg.name)}, expected "ventura"`);
-if (!['https://github.com/ConnorBritain/ventura.git', 'git+https://github.com/ConnorBritain/ventura.git'].includes(pkg.repository?.url)) {
-  failures.push('package repository does not point to ConnorBritain/ventura');
+if (pkg.name !== 'operatus') failures.push(`package name is ${JSON.stringify(pkg.name)}, expected "operatus"`);
+if (!['https://github.com/ConnorBritain/operatus.git', 'git+https://github.com/ConnorBritain/operatus.git'].includes(pkg.repository?.url)) {
+  failures.push('package repository does not point to ConnorBritain/operatus');
 }
 
 const builder = readFileSync(join(root, 'electron-builder.yml'), 'utf8');
-for (const expected of ['appId: com.connorbritain.ventura', 'productName: Ventura']) {
+for (const expected of ['appId: com.connorbritain.operatus', 'productName: Operatus']) {
   if (!builder.includes(expected)) failures.push(`electron-builder.yml is missing ${expected}`);
 }
 
@@ -72,5 +72,5 @@ if (failures.length) {
   console.error(failures.join('\n'));
   process.exitCode = 1;
 } else {
-  console.log('Ventura identity and redistributable asset checks passed.');
+  console.log('Operatus identity and redistributable asset checks passed.');
 }

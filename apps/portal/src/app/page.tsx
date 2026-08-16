@@ -39,13 +39,13 @@ function LoginPage() {
         </div>
         <div className="login-copy">
           <span className="eyebrow">Your ventures, within reach</span>
-          <h1>Run the company from anywhere.</h1>
+          <h1>Run the firm from anywhere.</h1>
           <p>See each machine as its own branch, follow agent ventures, and send only the narrow commands that branch is prepared to accept.</p>
         </div>
       </section>
       <section className="login-panel">
         <div className="login-card pixel-panel">
-          <span className="eyebrow">Venture control</span>
+          <span className="eyebrow">Agent firm control</span>
           <h2>Welcome back</h2>
           <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
           <AuthPanel />
@@ -77,7 +77,7 @@ export default async function Home({ searchParams }: PageProps) {
       <main className="center-stage">
         <section className="paper-card narrow-card pixel-panel">
           <span className="eyebrow">Identity connected</span>
-          <h1>The company directory is being prepared.</h1>
+          <h1>The firm directory is being prepared.</h1>
           <p>Your session is valid, but the remote control-plane schema is not available yet.</p>
         </section>
       </main>
@@ -137,7 +137,7 @@ export default async function Home({ searchParams }: PageProps) {
       <main className="portal-main">
         <section className="hero-row">
           <div>
-            <span className="eyebrow">{selectedWorkspace?.name ?? "Personal workspace"}</span>
+            <span className="eyebrow">{selectedWorkspace?.name ?? "Personal firm"}</span>
             <h1>Operations floor</h1>
             <p>{onlineCount} of {nodes.length} branches online · {runs.length} visible ventures</p>
           </div>

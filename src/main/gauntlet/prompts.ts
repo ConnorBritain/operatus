@@ -12,19 +12,19 @@ export function buildConductorOrientationPrompt(input: {
   objective: string;
 }): string {
   return [
-    `You are the long-lived Ventura Conductor for Gauntlet Run ${input.runId}.`,
+    `You are the long-lived Operatus Conductor for Gauntlet Run ${input.runId}.`,
     `Repository: ${input.repository}`,
     `Base artifact: ${input.baseSha}`,
     '',
     'Orient to the repository and translate the bounded objective into an externally observable quality bar.',
     'The bar must name concrete criteria, reproducible check commands where available, constraints, and exclusions.',
-    'Do not implement. Once the bar is sufficient, freeze it through the Ventura Gauntlet control command.',
+    'Do not implement. Once the bar is sufficient, freeze it through the Operatus Gauntlet control command.',
     'After freezing, you own critic acknowledgment, repair synthesis, stop/continue judgment, and human escalation.',
     '',
     `Objective: ${input.objective}`,
     '',
     'Write the contract JSON to a temporary file with keys objective, criteria, checks, constraints, and exclusions.',
-    `Freeze it with: "$HIVE_NODE" "$VENTURA_GAUNTLET_HELPER" freeze --run ${input.runId} --file <contract.json>`
+    `Freeze it with: "$HIVE_NODE" "$OPERATUS_GAUNTLET_HELPER" freeze --run ${input.runId} --file <contract.json>`
   ].join('\n');
 }
 
@@ -38,12 +38,12 @@ export function buildWorkerPrompt(input: {
   repairPacket?: RepairPacket;
 }): string {
   const lines = [
-    `You are a fresh Ventura ${capitalize(input.role)} for Gauntlet Run ${input.runId}.`,
+    `You are a fresh Operatus ${capitalize(input.role)} for Gauntlet Run ${input.runId}.`,
     `Expected starting artifact: ${input.expectedSha}`,
     `Frozen bar digest: ${input.contract.digest}`,
     '',
     'Work only in the current isolated worktree. Do not merge, push, change the quality bar, or grade your own work.',
-    'Produce one or more focused commits, finish with a clean worktree, and report the full HEAD SHA through the Ventura control command.',
+    'Produce one or more focused commits, finish with a clean worktree, and report the full HEAD SHA through the Operatus control command.',
     '',
     '# Original requested objective',
     input.requestedObjective,
@@ -60,7 +60,7 @@ export function buildWorkerPrompt(input: {
       ...input.repairPacket.exclusions.map((exclusion) => `- ${exclusion}`)
     );
   }
-  lines.push('', `When complete: "$HIVE_NODE" "$VENTURA_GAUNTLET_HELPER" complete --run ${input.runId} --launch ${input.launchId} --sha "$(git rev-parse HEAD)"`);
+  lines.push('', `When complete: "$HIVE_NODE" "$OPERATUS_GAUNTLET_HELPER" complete --run ${input.runId} --launch ${input.launchId} --sha "$(git rev-parse HEAD)"`);
   return lines.join('\n');
 }
 
@@ -74,7 +74,7 @@ export function buildCriticPrompt(input: {
   primitivePrompt: string;
 }): string {
   return [
-    `You are the fresh independent Critic for Ventura Gauntlet Run ${input.runId}.`,
+    `You are the fresh independent Critic for Operatus Gauntlet Run ${input.runId}.`,
     `Review exact artifact: ${input.artifactSha}`,
     `Comparison base: ${input.baseSha}`,
     `Frozen bar digest: ${input.contract.digest}`,
@@ -89,9 +89,9 @@ export function buildCriticPrompt(input: {
     '',
     input.primitivePrompt,
     '',
-    'Submit a structured report with the Ventura control command. The report must bind this exact artifact and bar digest.',
+    'Submit a structured report with the Operatus control command. The report must bind this exact artifact and bar digest.',
     'Write JSON with artifactSha, contractDigest, verdict, summary, and findings to a temporary report file.',
-    `Submit it with: "$HIVE_NODE" "$VENTURA_GAUNTLET_HELPER" critic --run ${input.runId} --launch ${input.launchId} --file <report.json>`,
+    `Submit it with: "$HIVE_NODE" "$OPERATUS_GAUNTLET_HELPER" critic --run ${input.runId} --launch ${input.launchId} --file <report.json>`,
     `Launch identity: ${input.launchId}`
   ].join('\n');
 }
@@ -110,7 +110,7 @@ export function buildConductorAcknowledgmentPrompt(report: CriticReport): string
     'The critic is advisory; you remain accountable for the decision. Do not silently change the frozen bar.'
     ,
     'Write JSON with reportId, decision, acceptedFindingIds, rejectedFindings, rationale, and optional repairInstructions.',
-    `Acknowledge with: "$HIVE_NODE" "$VENTURA_GAUNTLET_HELPER" acknowledge --run ${report.runId} --file <acknowledgment.json>`
+    `Acknowledge with: "$HIVE_NODE" "$OPERATUS_GAUNTLET_HELPER" acknowledge --run ${report.runId} --file <acknowledgment.json>`
   ].join('\n');
 }
 

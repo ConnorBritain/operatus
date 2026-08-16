@@ -21,13 +21,13 @@ export function OfficeThemePicker({ config }: { config: HarnessConfig }) {
     const next = normalizeBranchProfile(home ? config.branchProfiles?.[home] : undefined);
     setProfile(next);
     useStore.getState().setBranchProfile(next);
-    document.title = `${next.name} · Ventura`;
+    document.title = `${next.name} · Operatus`;
   }, [home, config.branchProfiles]);
 
   const save = async (next: BranchProfile) => {
     setProfile(next);
     useStore.getState().setBranchProfile(next);
-    document.title = `${next.name} · Ventura`;
+    document.title = `${next.name} · Operatus`;
     if (!home) return;
     try {
       await window.cth.updateConfig({
