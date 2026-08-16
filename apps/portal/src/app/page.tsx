@@ -30,13 +30,15 @@ function LoginPage() {
     <main className="login-shell">
       <section className="login-illustration" aria-label="Remote venture operations floor">
         <BrandMark />
-        <div className="studio-scene pixel-scene" aria-hidden="true">
-          <div className="window"><i /><i /><i /></div>
-          <div className="desk desk-one"><span /><b /></div>
-          <div className="desk desk-two"><span /><b /></div>
-          <div className="plant"><i /><i /><i /></div>
-          <div className="floor-grid" />
-        </div>
+        <img
+          aria-hidden="true"
+          className="login-office-art"
+          decoding="async"
+          fetchPriority="high"
+          height="1086"
+          src="/operatus-office-collaboration.webp"
+          width="1448"
+        />
         <div className="login-copy">
           <span className="eyebrow">Your ventures, within reach</span>
           <h1>Run the firm from anywhere.</h1>
@@ -45,8 +47,15 @@ function LoginPage() {
       </section>
       <section className="login-panel">
         <div className="login-card pixel-panel">
-          <span className="eyebrow">Agent firm control</span>
-          <h2>Welcome back</h2>
+          <div className="login-card-heading">
+            <div>
+              <span className="eyebrow">Agent firm control</span>
+              <h2>Welcome back</h2>
+            </div>
+            <span className="login-card-vignette" aria-hidden="true">
+              <img height="1086" src="/operatus-office-collaboration.webp" width="1448" />
+            </span>
+          </div>
           <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
           <AuthPanel />
           <p className="trust-note">Your browser never receives node credentials or arbitrary shell access. Local machines retain run and Git authority.</p>
