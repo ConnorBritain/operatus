@@ -40,25 +40,29 @@ function LoginPage() {
           width="1448"
         />
         <div className="login-copy">
-          <span className="eyebrow">Branch by branch, from any device</span>
-          <h1>Scale your agent operations without scaling your attention.</h1>
-          <p>Operatus is an AI operator for running work across every machine—whether you grow one powerful Branch or add many.</p>
+          <span className="eyebrow">Delegation, branch by branch</span>
+          <h1>Hand off the work. Keep the firm in view.</h1>
+          <p>Operatus is a visual tool for managing AI agent operations across any machine, anywhere. Hand an objective to a lead Conductor, let fresh specialists build, critique, and repair the work, and step in only when the decision truly needs you.</p>
         </div>
       </section>
       <section className="login-panel">
         <div className="login-panel-inner">
           <div className="login-card pixel-panel">
-            <div className="login-brand-lockup">
-              <img aria-hidden="true" className="login-brand-mark" height="1024" src="/operatus-mark-transparent.png?v=coral-2" width="1024" />
-              <BrandWordmark />
+            <div className="login-card-brand">
+              <div className="login-brand-lockup">
+                <img aria-hidden="true" className="login-brand-mark" height="1254" src="/operatus-mark-inverse.png?v=1" width="1254" />
+                <BrandWordmark className="inverse" />
+              </div>
             </div>
-            <div className="login-card-heading">
-              <span className="eyebrow">Agent firm control</span>
-              <h2>Welcome back</h2>
+            <div className="login-card-body">
+              <div className="login-card-heading">
+                <span className="eyebrow">Agent firm control</span>
+                <h2>Welcome back</h2>
+              </div>
+              <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
+              <AuthPanel />
+              <p className="trust-note">Your browser never receives node credentials or arbitrary shell access. Local machines retain run and Git authority.</p>
             </div>
-            <p className="muted">Sign in to see the machines and workspaces tied to your identity.</p>
-            <AuthPanel />
-            <p className="trust-note">Your browser never receives node credentials or arbitrary shell access. Local machines retain run and Git authority.</p>
           </div>
         </div>
       </section>

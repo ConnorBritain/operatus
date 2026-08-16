@@ -153,6 +153,11 @@ p { line-height: 1.58; }
 .brand-wordmark-studs i:nth-child(2) { background: var(--accent); }
 .brand-wordmark-studs i:nth-child(3) { background: #c58a28; }
 .brand-wordmark-studs i:nth-child(4) { background: var(--green); }
+.brand-wordmark.inverse .brand-wordmark-type { color: #fffaf0; text-shadow: 2px 2px 0 color-mix(in srgb, var(--line) 44%, transparent); }
+.brand-wordmark.inverse .brand-wordmark-studs i { background: #fffaf0; }
+.brand-wordmark.inverse .brand-wordmark-studs i:nth-child(2) { opacity: .9; }
+.brand-wordmark.inverse .brand-wordmark-studs i:nth-child(3) { opacity: .8; }
+.brand-wordmark.inverse .brand-wordmark-studs i:nth-child(4) { opacity: .7; }
 .profile-avatar { --branch: #9a6145; align-items: center; background: var(--branch-soft); border: 2px solid var(--line); border-radius: 2px; display: inline-flex; flex: 0 0 auto; height: 42px; justify-content: center; overflow: hidden; width: 42px; }
 .profile-avatar.small { height: 34px; width: 34px; }
 .profile-avatar.large { height: 76px; width: 76px; }
@@ -165,11 +170,13 @@ p { line-height: 1.58; }
 .login-illustration { background: #dfd2bd; border-right: 3px solid var(--line); min-height: 100vh; overflow: hidden; padding: 2.2rem 3rem; position: relative; }
 .login-panel { align-items: center; background: var(--paper); display: flex; justify-content: center; padding: 3rem; }
 .login-panel-inner { max-width: 540px; width: 100%; }
-.login-brand-lockup { align-items: center; display: flex; flex-direction: column; gap: .25rem; margin-bottom: 2.3rem; }
+.login-brand-lockup { align-items: center; display: flex; flex-direction: column; gap: .25rem; }
 .login-brand-mark { height: 104px; image-rendering: pixelated; object-fit: contain; width: 104px; }
 .login-brand-lockup .brand-wordmark { align-items: center; }
 .login-brand-lockup .brand-wordmark-studs { margin-right: 0; }
-.login-card { background: var(--paper-strong); display: flex; flex-direction: column; justify-content: center; max-width: 540px; min-height: min(820px, calc(100vh - 6rem)); padding: clamp(1.8rem, 4vw, 3rem); width: 100%; }
+.login-card { background: var(--paper-strong); display: grid; grid-template-rows: minmax(220px, 1fr) minmax(0, 2fr); max-width: 540px; min-height: min(820px, calc(100vh - 6rem)); overflow: hidden; padding: 0; width: 100%; }
+.login-card-brand { align-items: flex-start; background: var(--accent); border-bottom: 2px solid var(--line); display: flex; justify-content: center; padding: 1.55rem 2rem 1rem; }
+.login-card-body { display: flex; flex-direction: column; justify-content: center; padding: clamp(1.8rem, 4vw, 3rem); }
 .login-card-heading { display: block; }
 .login-card h2 { font-size: clamp(1.85rem, 3.2vw, 2.55rem); font-weight: 850; letter-spacing: -.07em; margin: .45rem 0 .75rem; white-space: nowrap; }
 .login-copy { bottom: 7%; max-width: 640px; position: absolute; z-index: 2; }
@@ -360,9 +367,10 @@ p { line-height: 1.58; }
   .login-copy p { font-size: .94rem; max-width: none; }
   .login-office-art { height: 235px; left: 1.25rem; object-position: 50% 48%; right: auto; top: 5.5rem; width: calc(100% - 2.5rem); }
   .hero-wordmark .brand-wordmark-type { font-size: 1.45rem; }
-  .login-brand-lockup { margin-bottom: 1.9rem; }
   .login-brand-mark { height: 88px; width: 88px; }
-  .login-card { min-height: calc(100vh - 4rem); }
+  .login-card { grid-template-rows: minmax(200px, 1fr) minmax(0, 2fr); min-height: calc(100vh - 4rem); }
+  .login-card-brand { padding-top: 1.35rem; }
+  .login-card-body { padding: 1.8rem; }
   .login-card h2 { font-size: clamp(1.75rem, 9vw, 2.35rem); }
   .inline-form, .hero-row, .run-strip { align-items: stretch; flex-direction: column; }
   .portal-main { padding-top: 2rem; }

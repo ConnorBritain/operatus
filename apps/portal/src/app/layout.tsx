@@ -3,14 +3,14 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "https://operatus.vercel.app"),
-  title: "Operatus — Agent Firm Control",
-  description: "An AI operator for running work across every machine—branch by branch, from any device.",
+  title: "Operatus | Visual Agent Operations",
+  description: "A visual tool for managing AI agent operations across any machine, anywhere.",
   applicationName: "Operatus",
   manifest: "/manifest.webmanifest",
   icons: { icon: "/operatus-icon-192.png", apple: "/apple-touch-icon.png" },
   openGraph: {
-    title: "Operatus — Agent Firm Control",
-    description: "Run agent operations across every machine—branch by branch, from any device.",
+    title: "Operatus | Visual Agent Operations",
+    description: "Delegate agent work to a lead Conductor and keep every machine in view from anywhere.",
     images: [{ url: "/operatus-icon.png", width: 1024, height: 1024, alt: "Operatus mark" }],
   },
 };
