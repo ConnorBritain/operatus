@@ -1,7 +1,7 @@
 /**
- * Realtime Michael — voice toggle + live state indicator (card rt-3, Phase 1).
+ * Realtime Conductor — voice toggle + live state indicator (card rt-3, Phase 1).
  *
- * A reusable mic button for the god/orchestrator agent ("Michael"). It consumes the
+ * A reusable mic button for the god/orchestrator agent ("Conductor"). It consumes the
  * already-built `useRealtimeMichael()` voice-loop hook (a shared module-level singleton —
  * see realtime/session.ts) and exposes a single start/stop control plus a live indicator
  * of the loop's status.
@@ -14,7 +14,7 @@
  * Click behaviour: status==='off' → connect(); anything else → disconnect().
  *
  * Rendered in two places (AgentCard for the god card, FullscreenTerminal header when
- * Michael is fullscreen). It is intentionally state-only / hook-only so both can mount it.
+ * Conductor is fullscreen). It is intentionally state-only / hook-only so both can mount it.
  */
 import { useEffect, useRef, useState, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -43,21 +43,21 @@ const STATE_VIEW: Record<
     variant: 'secondary',
     label: 'talk',
     dot: 'var(--cth-ink-300)',
-    help: 'Talk to Michael — start the voice session'
+    help: 'Talk to Conductor — start the voice session'
   },
   connecting: {
     variant: 'secondary',
     label: '…',
     dot: 'var(--cth-lemon)',
     anim: 'cth-blink 700ms steps(2, end) infinite',
-    help: 'Connecting to Michael…'
+    help: 'Connecting to Conductor…'
   },
   listening: {
     variant: 'primary',
     label: 'listening',
     dot: 'var(--cth-mint)',
     anim: 'cth-pulse 1000ms steps(2, end) infinite',
-    help: 'Listening — Michael is hearing you (click to stop)',
+    help: 'Listening — Conductor is hearing you (click to stop)',
     activeBg: 'var(--cth-mint)'
   },
   responding: {
@@ -65,7 +65,7 @@ const STATE_VIEW: Record<
     label: 'speaking',
     dot: 'var(--cth-sky)',
     anim: 'cth-pulse 600ms steps(2, end) infinite',
-    help: 'Michael is speaking (click to stop)',
+    help: 'Conductor is speaking (click to stop)',
     activeBg: 'var(--cth-sky)'
   },
   working: {
@@ -73,7 +73,7 @@ const STATE_VIEW: Record<
     label: 'working',
     dot: 'var(--cth-coral)',
     anim: 'cth-blink 500ms steps(2, end) infinite',
-    help: 'Michael is running a tool — mic muted (click to stop)'
+    help: 'Conductor is running a tool — mic muted (click to stop)'
   }
 };
 

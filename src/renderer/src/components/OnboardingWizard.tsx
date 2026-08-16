@@ -37,7 +37,7 @@ const FEATURES: Feature[] = [
     icon: 'gear',
     label: 'MICHAEL IS YOUR CLONE',
     desc: 'Your clone runs the floor — triages requests, routes tasks, and escalates only what needs you.',
-    descPlain: 'Your clone, Michael, takes your requests, hands work to the right agent, and only interrupts you when it matters.',
+    descPlain: 'Your clone, Conductor, takes your requests, hands work to the right agent, and only interrupts you when it matters.',
     tint: 'var(--cth-sky-light)', edge: 'var(--cth-sky)'
   },
   {
@@ -189,7 +189,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
         <PixelPanel
           variant="dialog"
           title={
-            step === 'persona' ? 'WELCOME TO MUNDER DIFFLIN'
+            step === 'persona' ? 'WELCOME TO ATELIER'
             : step === 'welcome' ? 'MEET YOUR OFFICE'
             : step === 'home' ? (plain ? 'STEP 1 OF 4 · A HOME FOR THE APP' : 'STEP 1 OF 4 · HARNESS HOME')
             : step === 'orchestrator' ? (plain ? "STEP 2 OF 4 · YOUR CLONE" : "STEP 2 OF 4 · YOUR CLONE'S ENGINE")
@@ -217,7 +217,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                       A CLONE OF YOU, WORKING 24/7
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--cth-ink-700)', lineHeight: '19px' }}>
-                      Munder Difflin turns the CLI agent you already use into a clone of you —
+                      Atelier turns the CLI agent you already use into a clone of you —
                       one that runs an office of long-running agents and keeps working while
                       you're away. It manages everything around them: context, memory, tasks,
                       triggers, environment, files, and integrations.
@@ -350,11 +350,11 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
               <>
                 <p style={{ margin: 0, lineHeight: '22px' }}>
                   {plain ? (
-                    <><strong>Michael is your clone</strong> — he reads your requests, breaks
+                    <><strong>Conductor is your clone</strong> — he reads your requests, breaks
                     them into tasks, and hands them to the right agent. He's the boss of the
                     floor; you're still the boss of him. Choose which AI engine powers him.</>
                   ) : (
-                    <><strong>Michael is your clone</strong> — the boss of the floor you just
+                    <><strong>Conductor is your clone</strong> — the boss of the floor you just
                     met. He triages your requests, assigns tasks, and manages the team, while
                     escalating anything that genuinely needs you. Pick the engine and model that
                     power him; give him a longer-context, higher-capability model.</>
@@ -378,7 +378,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     ) : (
                       <>Each option is a <strong>CLI engine</strong> you have installed (Claude Code,
                       Codex, Antigravity/Gemini, or a local proxy like Qwen).
-                      <strong> Your clone</strong> (Michael) is the engine that orchestrates the whole
+                      <strong> Your clone</strong> (Conductor) is the engine that orchestrates the whole
                       hive. Recommended: Claude Code · Opus 4.8 · 1M — other providers can be wired
                       per agent later.</>
                     )}
@@ -449,7 +449,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     ))}
                   </select>
                   <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
-                    This only sets Michael's engine. You can run other providers per agent later.
+                    This only sets Conductor's engine. You can run other providers per agent later.
                   </div>
                 </div>
               </>
@@ -600,7 +600,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 <ToggleRow
                   icon="info"
                   label="SHARE ANONYMOUS USAGE STATS"
-                  desc="A handful of anonymous events (app opened, agent spawned, feature used) that help improve Munder Difflin — never prompts, code, file paths, or agent output. Full list in TELEMETRY.md; change anytime in Settings."
+                  desc="A handful of anonymous events (app opened, agent spawned, feature used) that help improve Atelier — never prompts, code, file paths, or agent output. Full list in TELEMETRY.md; change anytime in Settings."
                   on={shareStats}
                   tint="var(--cth-lemon-light)"
                   edge="var(--cth-lemon)"

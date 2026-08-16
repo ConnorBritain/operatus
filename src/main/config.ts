@@ -12,6 +12,7 @@ import {
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
 import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
+import type { BranchProfile } from '../shared/branchIdentity';
 import {
   DEFAULT_CONTEXT_TRIGGER,
   DEFAULT_ORG_TRIGGER,
@@ -187,7 +188,7 @@ export interface HarnessConfig {
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
   defaultModel?: string;
-  /** Which provider powers the GOD orchestrator ("Michael"). The persona is
+  /** Which provider powers the GOD orchestrator ("Conductor"). The persona is
    *  constant; only its engine is selectable. Default 'claude'. Eligible providers
    *  are those that can receive inbox (claude/codex/antigravity/qwen). */
   godProvider?: AgentProvider;
@@ -287,7 +288,7 @@ export interface HarnessConfig {
    *  harness agents only; the user's global Claude theme is never touched. */
   terminalTheme?: 'light' | 'dark';
   /** Anonymous product analytics (PostHog) — the exact events/properties are
-   *  documented in TELEMETRY.md. Default ON (opt-out, like autoUpdate); builds
+   *  documented in TELEMETRY.md. Default OFF for Atelier; builds
    *  without an injected key and environments with DO_NOT_TRACK set never send
    *  regardless of this flag. (Mirrored in preload + renderer config.) */
   telemetryEnabled?: boolean;
@@ -299,6 +300,9 @@ export interface HarnessConfig {
    *  `tvShowOffices` is on; otherwise the office theme is used. Unbuilt show
    *  themes fall back to 'office' in the loader. */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
+  /** Visual identities keyed by harness-home path. This makes workspace/device
+   *  branches immediately distinguishable without changing protocol behavior. */
+  branchProfiles?: Record<string, BranchProfile>;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn (config-injection or proxy
    *  upstream). API KEYS are NOT stored here — they live write-only in the secret
@@ -306,7 +310,7 @@ export interface HarnessConfig {
   providerBaseUrls?: Partial<Record<AgentProvider, string>>;
   /** Per-CLI-provider default model slug, used to pre-fill the model picker. */
   providerDefaultModels?: Partial<Record<AgentProvider, string>>;
-  /** Master toggle for the Slack → Michael's-queue integration. */
+  /** Master toggle for the Slack → Conductor's-queue integration. */
   slackEnabled?: boolean;
   /** Slack app signing secret (Basic Information → Signing Secret). Never logged. */
   slackSigningSecret?: string;
@@ -335,8 +339,8 @@ export interface HarnessConfig {
   /** Groq Whisper model id. Default 'whisper-large-v3-turbo' (fast, multilingual). */
   freeflowModel?: string;
 
-  // ─── Realtime Michael (premium speech-to-speech voice orchestrator) ─────────
-  /** True ONLY while a Realtime Michael voice session is live: the renderer
+  // ─── Realtime Conductor (premium speech-to-speech voice orchestrator) ─────────
+  /** True ONLY while a Realtime Conductor voice session is live: the renderer
    *  session flips this on at start() (before getUserMedia) and off at stop().
    *  The main-process mic permission gate reads it so the Electron media
    *  permission is open EXACTLY while the voice loop holds the mic — never just
@@ -346,7 +350,7 @@ export interface HarnessConfig {
   /** How long (ms) a realtime voice session may sit with no voice activity before
    *  it auto-disconnects (the rt-9 idle guard). Default 180000 (3 min). 0 = never
    *  auto-disconnect on idle — the spend cap remains the runaway guard. The user
-   *  tunes this in Settings → Realtime Michael. */
+   *  tunes this in Settings → Realtime Conductor. */
   realtimeIdleDisconnectMs?: number;
 
   // ─── Generic inbound webhook + status API (LEGACY, single-endpoint) ─────────
@@ -425,8 +429,8 @@ const DEFAULTS: HarnessConfig = {
   missions: [OPS_STANDUP_MISSION],
   notifications: false,
   strongKeepalive: false,
-  autoUpdate: true,
-  telemetryEnabled: true,
+  autoUpdate: false,
+  telemetryEnabled: false,
   multiWindow: true,
   tvShowOffices: false,
   officeTheme: 'office',

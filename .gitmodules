@@ -1,0 +1,3 @@
+[submodule "vendor/agent-primitives"]
+	path = vendor/agent-primitives
+	url = https://github.com/ConnorBritain/agent-primitives.git

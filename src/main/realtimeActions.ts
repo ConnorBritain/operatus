@@ -1,7 +1,7 @@
 /**
- * Realtime Michael — voice ACTION spine (card rt-5, Phase 2).
+ * Realtime Conductor — voice ACTION spine (card rt-5, Phase 2).
  *
- * Phase 1 gave voice-Michael READ tools. Phase 2 gives him WRITE access: he can
+ * Phase 1 gave voice-Conductor READ tools. Phase 2 gives him WRITE access: he can
  * ping/dispatch agents, edit the task board, steer/pause/halt/kill workers, hire
  * new ones, and edit schedules — entirely by voice. Because the confirm surface is
  * VOICE-ONLY (the human declined on-screen confirm cards), the echo-back spine in
@@ -40,7 +40,7 @@ import type { ScheduledMission } from './config';
 import { inferAgentProvider } from '../shared/agentProvider';
 import { clearCommandForProvider } from '../shared/providerAutomation';
 
-export const VOICE_ACTOR = 'michael-voice';
+export const VOICE_ACTOR = 'conductor-voice';
 
 /** A minimal spawn spec — index.ts adapts it to its AgentSpawnOptions + spawnAgentCore. */
 export interface RealtimeSpawnSpec {
@@ -268,7 +268,7 @@ function attribute(deps: RealtimeActionDeps, verb: string, target: string, extra
   } catch {
     /* attribution is best-effort — never block the action */
   }
-  // rt-7 dual-orchestrator coord: tell the god PTY what voice-Michael just COMMITTED, so
+  // rt-7 dual-orchestrator coord: tell the god PTY what voice-Conductor just COMMITTED, so
   // the two autonomous orchestrators stay aware and don't make duplicate/contradictory
   // moves. attribute() only runs on committed writes (soft execs + post-confirm commits),
   // so god is never notified for a merely-proposed/uncommitted destructive action.
@@ -285,7 +285,7 @@ function attribute(deps: RealtimeActionDeps, verb: string, target: string, extra
         to: 'god',
         act: 'inform',
         subject: `voice action: ${verb} ${target}`,
-        body: `Michael (voice orchestrator, ${VOICE_ACTOR}) just did: ${verb} on ${target}${detail}. Heads-up so we don't duplicate — the board is the single source of truth.`
+        body: `Conductor (voice orchestrator, ${VOICE_ACTOR}) just did: ${verb} on ${target}${detail}. Heads-up so we don't duplicate — the board is the single source of truth.`
       },
       VOICE_ACTOR
     );
@@ -304,7 +304,7 @@ function execPing(deps: RealtimeActionDeps, a: Record<string, unknown>): ActionR
   const r = resolveAgent(str(a.agentId) || str(a.target) || str(a.name), reg);
   if ('error' in r) return { ok: false, spoken: r.error };
   const message = str(a.message) || str(a.text) || 'Checking in.';
-  deps.hiveSend({ to: r.id, act: 'inform', subject: 'Voice ping from Michael', body: message }, VOICE_ACTOR);
+  deps.hiveSend({ to: r.id, act: 'inform', subject: 'Voice ping from Conductor', body: message }, VOICE_ACTOR);
   attribute(deps, 'ping', r.id);
   return { ok: true, spoken: `Pinged ${r.name}.` };
 }
@@ -604,7 +604,7 @@ function proposeDestructive(deps: RealtimeActionDeps, verb: string, a: Record<st
     if ('error' in r) return { ok: false, spoken: r.error };
     // God policy per verb: kill/pause/halt/archive on god stay voice-forbidden.
     // clear_context on god is ALLOWED behind confirm — it's recoverable
-    // (sessions resume) and "clear Michael's context" is a real operator need.
+    // (sessions resume) and "clear Conductor's context" is a real operator need.
     if (r.isGod && verb !== 'clear_context')
       return { ok: false, spoken: `${verb} on the god orchestrator is voice-forbidden. That has to be done in the UI.` };
 

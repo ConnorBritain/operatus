@@ -29,6 +29,7 @@ import { FullscreenFileEditor } from '@/components/FullscreenFileEditor';
 import { IdePanel } from '@/ide/IdePanel';
 import { useHoldOptionToTalk } from '@/freeflow/holdOption';
 import brandLogo from '@brand/logo.png?url';
+import { normalizeBranchProfile } from '@shared/branchIdentity';
 
 // Injected at build time from package.json (see electron.vite.config.ts).
 declare const __APP_VERSION__: string;
@@ -101,6 +102,11 @@ export function App() {
       // Mirror the active office theme so OfficeFloor renders it (gated on the
       // tvShowOffices flag; off = always the office). Settings keeps this synced.
       useStore.getState().setOfficeTheme(c.tvShowOffices ? (c.officeTheme ?? 'office') : 'office');
+      const branchProfile = normalizeBranchProfile(
+        c.harnessHome ? c.branchProfiles?.[c.harnessHome] : undefined
+      );
+      useStore.getState().setBranchProfile(branchProfile);
+      document.title = `${branchProfile.name} · Atelier`;
       // Mirror the triggers so Settings → Connections and the Command Center's
       // Triggers tab read one list, not two copies that drift — whichever surface
       // saves calls these same setters and the other repaints. No extra IPC: main
@@ -113,7 +119,7 @@ export function App() {
       useStore.getState().setOrgTrigger(withTriggers.orgTrigger ?? DEFAULT_ORG_TRIGGER);
     });
     // Mirror BYOK OpenAI key presence (boolean only; the key never leaves main) so the
-    // Realtime Michael voice toggle can gate on it. Lives in the secret broker, not
+    // Realtime Conductor voice toggle can gate on it. Lives in the secret broker, not
     // config — so fetch it rather than derive from c.
     window.cth.realtimeHasOpenAiKey().then(has => {
       if (!cancelled) useStore.getState().setHasOpenAiKey(has);
@@ -171,7 +177,7 @@ export function App() {
 
   // The hive: god-agent bootstrap, hook-driven avatars, idle-agent waking. Held
   // off until the user opens a hive in the launch picker (passing null no-ops the
-  // hook) so Michael doesn't boot against the current home while the user may be
+  // hook) so Conductor doesn't boot against the current home while the user may be
   // about to switch to a different one.
   useHive(hiveOpened ? config : null);
 
@@ -186,7 +192,7 @@ export function App() {
   // hive (it would fire fake envelope handoffs and step seeded agents). Run it
   // only as an explicit showcase (VITE_CTH_DEMO=1 in dev) or on a genuinely
   // empty floor, and stop it the instant the first real PTY agent appears
-  // (Michael always spawns, so in normal operation it effectively never runs).
+  // (Conductor always spawns, so in normal operation it effectively never runs).
   useEffect(() => {
     if (!config?.onboardingComplete) return;
     const DEMO = import.meta.env.DEV && import.meta.env.VITE_CTH_DEMO === '1';
@@ -242,7 +248,7 @@ export function App() {
       width: '100vw', height: '100vh',
       overflow: 'hidden'
     }}>
-      {/* rt-12: global fixed-overlay toast for voice-Michael completions ("Oscar
+      {/* rt-12: global fixed-overlay toast for voice-Conductor completions ("Oscar
           finished X"). Self-positions bottom-right; renders null until one arrives. */}
       <CompletionToast />
       {/* v0.3.4: background-update toast ("restart to update"); renders null until
@@ -265,7 +271,7 @@ export function App() {
       >
         <img
           src={brandLogo}
-          alt="Munder Difflin"
+          alt="Atelier"
           style={{ height: 20, width: 'auto', display: 'block' }}
         />
         {/* v0.3.7: the version is no longer inert text — it doubles as the
@@ -405,7 +411,7 @@ export function App() {
                 color: 'var(--cth-ink-500)'
               }}>WAKING THE FLOOR</div>
               <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
-                Michael is clocking in.<br />
+                Conductor is clocking in.<br />
                 The terminal will land here once he's seated.
               </p>
             </PixelPanel>

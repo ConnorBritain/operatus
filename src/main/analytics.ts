@@ -1,5 +1,5 @@
 /**
- * Product analytics (PostHog) — anonymous, allowlisted, opt-out.
+ * Product analytics (PostHog) — anonymous, allowlisted, and default-off.
  *
  * This is the OUTBOUND product-usage counterpart to telemetry.ts (which is the
  * loopback-only OTel collector and never leaves the machine). Everything here
@@ -25,8 +25,8 @@
  *      a silent no-op for them.
  *   2. The DO_NOT_TRACK env convention (any value except '' / '0') — respected
  *      unconditionally, checked at every send so it can't be raced.
- *   3. The user's `telemetryEnabled` config (Settings → Privacy; default ON,
- *      i.e. opt-out — flipped live via setEnabled()).
+ *   3. The user's `telemetryEnabled` config (Settings → Privacy; default OFF,
+ *      explicitly enabled and flipped live via setEnabled()).
  *
  * Deliberately free of any `electron` import (paths/version are injected via
  * init) so it can be smoke-tested as a plain Node module, like telemetry.ts.
@@ -70,7 +70,7 @@ export interface AnalyticsInitOptions {
   stateDir: string;
   /** App version stamped on every event. */
   appVersion: string;
-  /** The user's `telemetryEnabled` config at boot (default true = opt-out). */
+  /** The user's `telemetryEnabled` config at boot (default false). */
   enabled: boolean;
 }
 

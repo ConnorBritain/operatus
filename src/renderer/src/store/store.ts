@@ -5,6 +5,7 @@ import type { ThemeId } from '@/scene/office/themeRegistry';
 import type { StatusKind } from '@/components/PixelBadge';
 import type { AgentProvider } from '@shared/agentProvider';
 import type { HireManifest } from '@shared/hire';
+import { DEFAULT_BRANCH_PROFILE, type BranchProfile } from '@shared/branchIdentity';
 import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
 import { isCompactionCommand } from '@shared/providerAutomation';
 
@@ -70,9 +71,9 @@ export interface Agent {
   /** the last prompt the user submitted to this agent in Claude Code —
    *  shown on the floor as a card above the seated avatar */
   lastPrompt?: string;
-  /** the orchestrator ("god") agent — seated in Michael's room, runs the floor */
+  /** the orchestrator ("god") agent — seated in Conductor's room, runs the floor */
   isGod?: boolean;
-  /** Michael's prep assistant — send-only; enriches prompts and forwards them to
+  /** Conductor's prep assistant — send-only; enriches prompts and forwards them to
    *  the god. Excluded from broadcast fan-out and from the restorable-dead sweep. */
   isAssistant?: boolean;
   /** When git isolation is enabled, the dedicated worktree path the agent runs
@@ -126,10 +127,10 @@ export interface QueuedMessage {
 // v0.3.4: at-a-glance branch/status/log without opening the IDE.
 export type SidebarTab = 'terminal' | 'messages' | 'traces' | 'git';
 
-/** Lifecycle of the god agent ("Michael") bootstrap on launch.
+/** Lifecycle of the god agent ("Conductor") bootstrap on launch.
  *  'booting' until his PTY is confirmed live, then 'ready' (or 'failed' if the
  *  spawn errored). The empty-floor UI shows a loader while 'booting' so users
- *  don't see the "add agent" prompt before Michael has clocked in. */
+ *  don't see the "add agent" prompt before Conductor has clocked in. */
 export type GodStatus = 'booting' | 'ready' | 'failed';
 
 interface State {
@@ -218,7 +219,7 @@ interface State {
   hasGroqKey: boolean;
   setHasGroqKey: (has: boolean) => void;
   /** Mirror of BYOK OpenAI key presence (boolean only — the key lives in the main
-   *  secret broker, never the store). Gates the Realtime Michael voice toggle the
+   *  secret broker, never the store). Gates the Realtime Conductor voice toggle the
    *  way hasGroqKey gates the Free Flow mic. Set by App on load via
    *  window.cth.realtimeHasOpenAiKey(). */
   hasOpenAiKey: boolean;
@@ -227,6 +228,9 @@ interface State {
    *  on switch). OfficeFloor depends on this and rebuilds the scene on change. */
   officeTheme: ThemeId;
   setOfficeTheme: (theme: ThemeId) => void;
+  /** Presentation-only identity of the currently open execution branch. */
+  branchProfile: BranchProfile;
+  setBranchProfile: (profile: BranchProfile) => void;
   /** Mirror of config.webhookTriggers — the inbound HTTP endpoints. Webhooks are
    *  editable from BOTH Settings → Connections and the Triggers tab, so neither
    *  surface keeps its own copy: both render off this list and both call the
@@ -710,6 +714,8 @@ export const useStore = create<State>((set) => ({
   setHasOpenAiKey: (has) => set({ hasOpenAiKey: has }),
   officeTheme: 'office',
   setOfficeTheme: (theme) => set({ officeTheme: theme }),
+  branchProfile: DEFAULT_BRANCH_PROFILE,
+  setBranchProfile: (profile) => set({ branchProfile: profile }),
   webhookTriggers: [],
   setWebhookTriggers: (list) => set({ webhookTriggers: list }),
   // A copy, not the shared DEFAULT_ORG_TRIGGER instance — main takes the same

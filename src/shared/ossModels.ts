@@ -69,8 +69,8 @@ export function hasOssQuickPicks(provider: AgentProvider): boolean {
   return provider === 'opencode' || provider === 'crush' || provider === 'pi';
 }
 
-/** Canonical blog URLs the local-setup UI hyperlinks to (ondev-c part-3). */
+/** Stable project documentation links for local-model setup. */
 export const OSS_BLOG_LINKS = {
-  openModels: 'https://munderdiffl.in/blog/run-munder-difflin-on-open-models/',
-  macMini: 'https://munderdiffl.in/blog/run-munder-difflin-on-a-mac-mini/'
+  openModels: 'https://github.com/ConnorBritain/atelier#requirements',
+  macMini: 'https://github.com/ConnorBritain/atelier#development'
 } as const;

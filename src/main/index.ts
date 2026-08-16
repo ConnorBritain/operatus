@@ -30,6 +30,15 @@ import { MemoryManager } from './memory';
 import { KnowledgeManager } from './knowledge';
 import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
+import { LocalGauntletBackend, type PreparedLaunch } from './gauntlet/localBackend';
+import { GauntletControlServer } from './gauntlet/controlServer';
+import { buildConductorAcknowledgmentPrompt, buildConductorOrientationPrompt } from './gauntlet/prompts';
+import type {
+  GauntletRunSnapshot,
+  RoleSkillAssignment,
+  SkillDepotSource,
+  StartGauntletInput
+} from '../shared/gauntlet';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
 import { listIssues, listCIRuns } from './github';
 import { SlackWebhookServer, SlackReplyServer, postSlackReply, type SlackEventFile } from './slack';
@@ -251,7 +260,7 @@ const breaker = new CircuitBreaker(() => {
   return { ...(c.circuitBreaker ?? {}), costCapUsd: c.costCapUsd, costCapTokens: c.costCapTokens, agentTokenCaps: c.agentTokenCaps };
 });
 // Always-on beats (decoupled from the optional heartbeat): the live fleet snapshot
-// Michael reads + the breaker beat, so guardrails + monitoring work even when the
+// Conductor reads + the breaker beat, so guardrails + monitoring work even when the
 // heartbeat mission is disabled (it ships off).
 let fleetTimer: ReturnType<typeof setInterval> | null = null;
 let breakerBeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -292,6 +301,234 @@ const reflector = new MemoryReflector(
 // Durable harness state (SQLite, main process). Phase A: window bounds (kv) +
 // net-new command history. Opened in whenReady, closed in the teardown blocks.
 const persist = new PersistStore();
+let gauntletBackend: LocalGauntletBackend | null = null;
+let gauntletControl: GauntletControlServer | null = null;
+const advancingGauntlets = new Set<string>();
+const orientedGauntletPrompts = new Set<string>();
+const acknowledgedReportPrompts = new Set<string>();
+const scheduledGauntletReaps = new Set<string>();
+const reapedGauntletLaunches = new Set<string>();
+let gauntletWatchdog: NodeJS.Timeout | null = null;
+
+function gauntlet(): LocalGauntletBackend {
+  if (!gauntletBackend) throw new Error('Gauntlet backend is not ready');
+  return gauntletBackend;
+}
+
+function publishGauntlet(snapshot: GauntletRunSnapshot): GauntletRunSnapshot {
+  for (const win of allWindows) {
+    if (!win.isDestroyed()) win.webContents.send('gauntlet:changed', snapshot);
+  }
+  // A role process has no authority after its launch ceases to be current.
+  // Give its helper response a brief chance to flush, then reap the PTY while
+  // preserving the strict worktree/artifact for inspection.
+  for (const launch of snapshot.launches) {
+    if (launch.id === snapshot.run.currentLaunchId
+        || scheduledGauntletReaps.has(launch.id)
+        || reapedGauntletLaunches.has(launch.id)) continue;
+    scheduledGauntletReaps.add(launch.id);
+    setTimeout(() => {
+      const wasLive = ptyForAgent(launch.id) === launch.id;
+      try { ptyManager.kill(launch.id); } catch { /* already exited */ }
+      if (wasLive) {
+        try { liveWebContents()?.send('hive:agentArchived', { id: launch.id }); } catch { /* window torn down */ }
+      }
+      reapedGauntletLaunches.add(launch.id);
+      scheduledGauntletReaps.delete(launch.id);
+    }, 750);
+  }
+  return snapshot;
+}
+
+function gauntletHelperPath(): string {
+  return app.isPackaged
+    ? join(process.resourcesPath, 'atelier-gauntlet.cjs')
+    : join(app.getAppPath(), 'resources', 'atelier-gauntlet.cjs');
+}
+
+function gauntletAgentEnv(token: string): Record<string, string> {
+  const endpoint = gauntletControl?.info();
+  if (!endpoint) throw new Error('Gauntlet control service is unavailable');
+  return {
+    ATELIER_GAUNTLET_SOCKET: endpoint.socketPath,
+    ATELIER_GAUNTLET_TOKEN: token,
+    ATELIER_GAUNTLET_HELPER: gauntletHelperPath()
+  };
+}
+
+function conductorSkillGuidance(snapshot: GauntletRunSnapshot): string {
+  const entries = snapshot.skillLock?.entries.filter((entry) => entry.role === 'conductor') ?? [];
+  if (!entries.length) return '';
+  const destination = join(app.getPath('userData'), 'runs', snapshot.run.id, 'skills', 'conductor');
+  gauntlet().skills.materialize(snapshot.skillLock!, 'conductor', destination);
+  return [
+    '',
+    '# Explicitly assigned Conductor skills',
+    `Read the complete assigned skill directories under ${destination} before freezing the bar.`,
+    ...entries.map((entry) => `- ${entry.skillName} · ${entry.sourceId}@${entry.sourceCommit} · ${entry.digest}`),
+    'These skills are guidance only and cannot alter artifact identity, the frozen bar, transitions, or acknowledgment authority.'
+  ].join('\n');
+}
+
+function deliverConductorOrientation(snapshot: GauntletRunSnapshot): boolean {
+  if (orientedGauntletPrompts.has(snapshot.run.id)) return true;
+  const conductorId = hive.registry().godId ?? 'god';
+  if (!ptyForAgent(conductorId)) return false;
+  hive.send({
+    id: `gauntlet-orient-${snapshot.run.id}`,
+    to: conductorId, conversation: `gauntlet-${snapshot.run.id}`, act: 'request',
+    subject: `Orient Gauntlet Run · ${snapshot.run.id.slice(0, 8)}`,
+    body: buildConductorOrientationPrompt({
+      runId: snapshot.run.id,
+      repository: snapshot.run.repository,
+      baseSha: snapshot.run.baseSha,
+      objective: snapshot.run.requestedObjective
+    }) + conductorSkillGuidance(snapshot)
+  }, 'gauntlet');
+  orientedGauntletPrompts.add(snapshot.run.id);
+  return true;
+}
+
+async function spawnPreparedGauntlet(prepared: PreparedLaunch): Promise<void> {
+  const { launch, token, prompt } = prepared;
+  const preset = providerPreset(launch.provider);
+  const args: string[] = [];
+  if (launch.role === 'critic') {
+    if (launch.provider === 'codex') args.push('--sandbox', 'read-only', '--ask-for-approval', 'never');
+    else if (launch.provider === 'claude') args.push('--permission-mode', 'plan');
+  } else if (preset.autoModeFlag) {
+    args.push(...preset.autoModeFlag.trim().split(/\s+/));
+  }
+  if (launch.model && preset.modelFlag) args.push(preset.modelFlag, launch.model);
+  const skillLock = gauntlet().status(launch.runId).skillLock;
+  if (skillLock?.entries.some((entry) => entry.role === launch.role)) {
+    const hiveRoot = hive.root();
+    if (!hiveRoot) throw new Error('cannot materialize run skills before the Atelier agent home is configured');
+    const providerHome = launch.provider === 'codex' ? '.codex' : '.claude';
+    gauntlet().skills.materialize(skillLock, launch.role, join(hiveRoot, 'agents', launch.id, providerHome, 'skills'));
+  }
+  const result = await spawnAgentCore({
+    id: launch.id,
+    cwd: launch.worktreePath,
+    command: preset.defaultCommand,
+    provider: launch.provider,
+    args,
+    env: gauntletAgentEnv(token),
+    hive: {
+      id: launch.id,
+      name: `${launch.role.slice(0, 1).toUpperCase()}${launch.role.slice(1)} · ${launch.runId.slice(0, 8)}`,
+      provider: launch.provider,
+      role: launch.role,
+      capabilities: launch.role === 'critic' ? ['review', 'read-only'] : ['implementation'],
+      cwd: launch.worktreePath
+    },
+    isolate: false,
+    resume: false,
+    noAutoInstall: false
+  }, liveWebContents());
+  if (!result.ok) throw new Error(result.error || `failed to launch ${launch.role}`);
+  // This spawn originates in MAIN rather than the Add Agent renderer flow.
+  // Announce it before routing the assignment so the floor creates the card,
+  // terminal pool, and guarded inbox-delivery path in event order.
+  try {
+    liveWebContents()?.send('hive:agentSpawned', {
+      id: launch.id,
+      name: `${launch.role.slice(0, 1).toUpperCase()}${launch.role.slice(1)} · ${launch.runId.slice(0, 8)}`,
+      provider: launch.provider,
+      cwd: launch.worktreePath,
+      command: preset.defaultCommand,
+      role: `Gauntlet ${launch.role}`,
+      worktreePath: launch.worktreePath
+    });
+  } catch { /* a headless run still retains hook-based lifecycle */ }
+  hive.send({
+    to: launch.id,
+    conversation: `gauntlet-${launch.runId}`,
+    act: 'request',
+    subject: `Gauntlet ${launch.role} assignment`,
+    body: prompt,
+    requires_reply: false
+  }, 'conductor');
+}
+
+async function advanceGauntlet(runId: string): Promise<void> {
+  if (advancingGauntlets.has(runId) || !gauntletBackend) return;
+  advancingGauntlets.add(runId);
+  try {
+    // One call may cross a transport retry state; every preparation transition
+    // is transactional, so concurrent callbacks cannot double-launch a role.
+    for (;;) {
+      const snapshot = gauntletBackend.status(runId);
+      let prepared: PreparedLaunch | null = null;
+      if (snapshot.run.status === 'orienting') {
+        // On restart the renderer may need a moment to restore the long-lived
+        // Conductor PTY. Leave the run intact and let the watchdog retry until
+        // that safe delivery boundary exists or the overall run budget expires.
+        try { deliverConductorOrientation(snapshot); } catch (error) {
+          console.error(`[gauntlet] orientation delivery ${runId} failed:`, error);
+        }
+        return;
+      } else if (snapshot.run.status === 'awaiting_implementation') prepared = gauntletBackend.prepareImplementer(runId);
+      else if (snapshot.run.status === 'awaiting_critic') prepared = gauntletBackend.prepareCritic(runId);
+      else if (snapshot.run.status === 'needs_repair') {
+        const packet = snapshot.repairPackets.at(-1);
+        if (!packet) throw new Error('run needs repair but has no repair packet');
+        prepared = gauntletBackend.prepareRepairer(runId, packet);
+      } else if (snapshot.run.status === 'awaiting_lead_ack') {
+        const report = snapshot.reports.find((candidate) => candidate.id === snapshot.run.currentCriticReportId);
+        if (report && !acknowledgedReportPrompts.has(report.id)) {
+          hive.send({
+            id: `gauntlet-ack-${report.id}`,
+            to: 'god', conversation: `gauntlet-${runId}`, act: 'request',
+            subject: `Conductor acknowledgment required · ${runId.slice(0, 8)}`,
+            body: buildConductorAcknowledgmentPrompt(report)
+          }, 'gauntlet');
+          acknowledgedReportPrompts.add(report.id);
+        }
+        return;
+      } else return;
+
+      publishGauntlet(gauntletBackend.status(runId));
+      try {
+        await spawnPreparedGauntlet(prepared);
+        return;
+      } catch (error) {
+        const failed = gauntletBackend.infrastructureFailure(runId, error instanceof Error ? error.message : String(error), true);
+        publishGauntlet(failed);
+        if (failed.run.status === 'infrastructure_failure') return;
+      }
+    }
+  } catch (error) {
+    console.error(`[gauntlet] advance ${runId} failed:`, error);
+  } finally {
+    advancingGauntlets.delete(runId);
+  }
+}
+
+function startGauntletWatchdog(): void {
+  if (gauntletWatchdog || !gauntletBackend) return;
+  gauntletWatchdog = setInterval(() => {
+    try {
+      for (const snapshot of gauntlet().sweepTimeouts()) {
+        publishGauntlet(snapshot);
+        void advanceGauntlet(snapshot.run.id);
+      }
+      // Also reconcile recoverable waiting states. This is what redelivers an
+      // orientation after restart once the renderer has restored Conductor.
+      for (const run of gauntlet().list()) {
+        if (!['passed', 'human_required', 'infrastructure_failure', 'cancelled'].includes(run.status)) {
+          void advanceGauntlet(run.id);
+        }
+      }
+    } catch (error) { console.error('[gauntlet] timeout sweep failed:', error); }
+  }, 30_000);
+  gauntletWatchdog.unref();
+}
+
+function stopGauntletWatchdog(): void {
+  if (gauntletWatchdog) clearInterval(gauntletWatchdog);
+  gauntletWatchdog = null;
+}
 /** The PRIMARY window — the one running the hive/god orchestration and the sink
  *  for process-global timer events (missions, breaker, Slack ingestion). It is
  *  the most-recently-focused live window, so global events follow the user.
@@ -529,6 +766,23 @@ ptyManager.setExitHandler((id, exitCode) => {
       return; // an install PTY has no agent/worktree to tear down
     }
     // Non-zero exit = install failed; leave its honest manual-fix message on screen.
+  }
+  if (gauntletBackend) {
+    try {
+      const active = gauntletBackend.list().find((run) => run.currentLaunchId === id);
+      if (active) {
+        const snapshot = publishGauntlet(gauntletBackend.infrastructureFailure(
+          active.id,
+          `Gauntlet role process exited before submitting a valid receipt (exit ${exitCode ?? 'unknown'})`,
+          true
+        ));
+        void advanceGauntlet(snapshot.run.id);
+      }
+    } catch (error) {
+      // During app teardown the authority store may already be closed. Restart
+      // reconciliation owns that case; do not turn a normal quit into a crash.
+      if (!allowQuit) console.error('[gauntlet] unexpected role exit handling failed:', error);
+    }
   }
   teardownPty(id);
 });
@@ -1092,7 +1346,7 @@ function runBreakerBeat(progressWindowMs: number): void {
   }
 }
 
-/** Build + write the live fleet snapshot Michael reads (`<hive>/fleet.json`).
+/** Build + write the live fleet snapshot Conductor reads (`<hive>/fleet.json`).
  *  Always-on (independent of the heartbeat) since `claude agents` can't see the
  *  hive's sibling sessions. PII-free; never throws (called from a timer). */
 function writeFleetSnapshot(): void {
@@ -1180,7 +1434,7 @@ function liveWebContents(): Electron.WebContents | null {
   return null;
 }
 
-// ─── Slack webhook server (Slack message → Michael's queue) ──────────────────
+// ─── Slack webhook server (Slack message → Conductor's queue) ──────────────────
 /** The running Slack ingestion server, or null when disabled/stopped. */
 let slackServer: SlackWebhookServer | null = null;
 /** The loopback-only reply endpoint (lets the bundled helper post back to Slack
@@ -1202,11 +1456,11 @@ let lastSlackUrl: string | undefined;
  *  reads naturally after it. */
 function buildAutonomousRequestProtocol(channel: string, threadTs: string, helperPath: string): string {
   return `[AUTONOMOUS REQUEST PROTOCOL — this request arrived via Slack; no interactive human is watching] Handle it under this protocol:
-1. ROUTE FAST — triage and hand this to the single most-relevant agent right away. CHECK THE LIVE ROSTER FIRST (active agents in registry.json + their state in fleet.json) and prefer an EXISTING agent that fits — especially when the request names one ("ask Pam…", "have Jim…"): route to that agent and only spawn a new one if none is a sensible fit. Decompose only if it genuinely needs several. Don't sit on it.
+1. ROUTE FAST — triage and hand this to the single most-relevant agent right away. CHECK THE LIVE ROSTER FIRST (active agents in registry.json + their state in fleet.json) and prefer an EXISTING agent that fits — especially when the request names one ("ask Navigator…", "have Builder…"): route to that agent and only spawn a new one if none is a sensible fit. Decompose only if it genuinely needs several. Don't sit on it.
 2. DELEGATE WITH THE REPLY HANDLE — tell that agent to do the work autonomously AND to post its result back to THIS Slack thread itself when done, using exactly: "$HIVE_NODE" "${helperPath}" --channel ${channel} --thread ${threadTs} --text "<substantive result>" ($HIVE_NODE is the harness's bundled Node, injected into every agent's env — bare "node" is not on the hook/agent PATH on many machines.)
 3. AUTONOMOUS EXECUTION — no interactive questions. PAUSE/ask ONLY for high-severity actions: pushing to main or any remote; buying or spawning infrastructure or paid services; deleting an existing repo, file, or folder it did not create. Stay READ-ONLY at critical infrastructure and git-push-type changes unless explicitly approved.
 4. DIRECT, SUBSTANTIVE REPLY — the agent posts a real Slack-mrkdwn answer (short *bold* headline + the actual outcome/specifics/links), NEVER a bare "done"/":white_check_mark:".
-5. REPORT TO GOD — the agent then tells you (Michael) what it did.
+5. REPORT TO GOD — the agent then tells you (Conductor) what it did.
 6. ASYNC QUESTIONS — if a decision is genuinely needed, don't block: post the question + numbered OPTIONS to the thread via that reply command, and record {q, options, askedAt (ISO + day & time), thread_ts ${threadTs}} so the threaded human reply correlates back and resumes.
 The user's message starts now: `;
 }
@@ -1983,7 +2237,7 @@ function floorCascade(): WindowBounds | null {
   return clampBounds({ x: b.x + OFFSET, y: b.y + OFFSET, width: b.width, height: b.height });
 }
 
-// ─── Shareable hires: munderdifflin:// deep link + file import ──────────────
+// ─── Shareable hires: atelier:// deep link + file import ─────────────────────
 // A hire manifest NEVER auto-spawns: it is validated, then handed to the
 // renderer, which pre-fills the Add-Agent modal for human review. See
 // src/shared/hire.ts for the spec + security model.
@@ -2028,10 +2282,10 @@ async function handleHireLink(link: string): Promise<void> {
 // exe+args form or the registration points at electron.exe with no entry.
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('munderdifflin', process.execPath, [resolve(process.argv[1])]);
+    app.setAsDefaultProtocolClient('atelier', process.execPath, [resolve(process.argv[1])]);
   }
 } else {
-  app.setAsDefaultProtocolClient('munderdifflin');
+  app.setAsDefaultProtocolClient('atelier');
 }
 
 // Deep links on Windows/Linux arrive as the argv of a SECOND process — take the
@@ -2048,7 +2302,7 @@ if (!gotInstanceLock) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
     }
-    const link = argv.find((a) => a.startsWith('munderdifflin://'));
+    const link = argv.find((a) => a.startsWith('atelier://'));
     if (link) void handleHireLink(link);
   });
 }
@@ -2100,7 +2354,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
     ...(geom && geom.x !== undefined && geom.y !== undefined ? { x: geom.x, y: geom.y } : {}),
     minWidth: MIN_WIN.width,
     minHeight: MIN_WIN.height,
-    title: isFloor ? 'Munder Difflin — Floor' : 'Munder Difflin',
+    title: isFloor ? 'Atelier — Floor' : 'Atelier',
     backgroundColor: '#FFF8E7',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -2134,7 +2388,7 @@ function createWindow(opts: { floor?: boolean } = {}): BrowserWindow {
   // Permission gate for the renderer (our own trusted, local content). The only
   // permission we constrain is microphone capture: it's allowed ONLY while a mic
   // feature is actually live — Free Flow dictation (`freeflowEnabled`) OR a
-  // Realtime Michael voice session (`realtimeVoiceEnabled`, flipped on by the
+  // Realtime Conductor voice session (`realtimeVoiceEnabled`, flipped on by the
   // session at start() before getUserMedia, off at stop()). With both flags off,
   // there's zero mic access even at the Electron layer. We deliberately do NOT
   // gate on OpenAI-key presence: that key (`apikey:openai`) is shared with the CLI
@@ -2380,6 +2634,11 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
+  // The long-lived Conductor gets the local control capability at process
+  // launch. The secret never crosses the renderer bridge or enters run records.
+  if (opts.hive?.isGod && gauntletControl) {
+    opts.env = { ...(opts.env ?? {}), ...gauntletAgentEnv(gauntletControl.info().conductorToken) };
+  }
   // ── Missing engine CLI → run its installer visibly (pre-spawn) ───────────────
   // If the agent's engine binary (claude/codex/…) isn't installed, spawning it
   // just dies with "— process exited (code 1) —" and the user has no idea why.
@@ -2540,7 +2799,7 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
         : cfg.defaultModel ?? modelForRole(opts.hive, cfg);
       if (m) args.push('--model', m);
     }
-    // Name the Remote Control session after the agent (Michael, Jim, Dev1…) so it
+    // Name the Remote Control session after the agent (Conductor, Jim, Dev1…) so it
     // is identifiable in claude.ai / the mobile app. Otherwise Claude defaults the
     // prefix to the machine hostname (e.g. "vyapaks-macbook-pro-…"), which is
     // opaque when several agents run at once — especially with remoteControlAtStartup
@@ -3204,6 +3463,54 @@ ipcMain.handle('history:list', (_evt, agentId: unknown, limit: unknown) =>
 ipcMain.handle('history:search', (_evt, query: unknown, limit: unknown) =>
   persist.searchHistory(typeof query === 'string' ? query : '', typeof limit === 'number' ? limit : undefined));
 
+// ─── IPC: durable local Gauntlet Runs ───────────────────────────────────────
+ipcMain.handle('gauntlet:list', () => gauntlet().list());
+ipcMain.handle('gauntlet:get', (_evt, runId: unknown) => {
+  if (typeof runId !== 'string' || !runId) throw new Error('invalid run id');
+  return gauntlet().status(runId);
+});
+ipcMain.handle('gauntlet:start', (_evt, payload: unknown) => {
+  const input = (payload ?? {}) as Partial<StartGauntletInput> & { assignments?: RoleSkillAssignment[] };
+  if (typeof input.repository !== 'string' || typeof input.objective !== 'string') throw new Error('repository and objective are required');
+  if (!hive.enabled()) throw new Error('Finish Atelier setup before starting a Gauntlet Run.');
+  const conductorId = hive.registry().godId ?? 'god';
+  if (!ptyForAgent(conductorId)) throw new Error('Conductor is still clocking in. Wait for Conductor to be ready, then start the run again.');
+  const snapshot = publishGauntlet(gauntlet().start({
+    repository: input.repository,
+    objective: input.objective,
+    baseRef: typeof input.baseRef === 'string' ? input.baseRef : undefined,
+    providers: input.providers,
+    limits: input.limits
+  }, Array.isArray(input.assignments) ? input.assignments : []));
+  try {
+    if (!deliverConductorOrientation(snapshot)) throw new Error('Conductor PTY became unavailable before orientation delivery');
+    return snapshot;
+  } catch (error) {
+    return publishGauntlet(gauntlet().infrastructureFailure(
+      snapshot.run.id,
+      `Conductor orientation could not be delivered: ${error instanceof Error ? error.message : String(error)}`,
+      false
+    ));
+  }
+});
+ipcMain.handle('gauntlet:cancel', (_evt, runId: unknown, reason: unknown) => {
+  if (typeof runId !== 'string') throw new Error('invalid run id');
+  return publishGauntlet(gauntlet().cancel(runId, typeof reason === 'string' ? reason : 'Cancelled by human'));
+});
+
+ipcMain.handle('skills:sources', () => gauntlet().skills.listSources());
+ipcMain.handle('skills:saveSources', (_evt, payload: unknown) => {
+  if (!Array.isArray(payload)) throw new Error('sources must be an array');
+  gauntlet().skills.saveSources(payload as SkillDepotSource[]);
+  return gauntlet().skills.listSources();
+});
+ipcMain.handle('skills:sync', (_evt, sourceId: unknown) => {
+  if (typeof sourceId !== 'string') throw new Error('invalid source id');
+  return gauntlet().skills.sync(sourceId);
+});
+ipcMain.handle('skills:catalog', () => gauntlet().skills.listSources().flatMap((source) =>
+  source.enabled ? gauntlet().skills.discover(source) : []));
+
 // ─── IPC: quit confirmation ─────────────────────────────────────────────────
 /** Tear the harness down and quit. Shared by the hard "kill all & quit" path
  *  and the closing-time conclusion (after the god confirmed the floor saved). */
@@ -3213,6 +3520,7 @@ function teardownAndQuit(): void {
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
   try { clearMissionTimers(); } catch (e) { console.error('[quit] clearMissionTimers:', e); }
   try { clearContextTimers(); } catch (e) { console.error('[quit] clearContextTimers:', e); }
+  try { stopGauntletWatchdog(); } catch (e) { console.error('[quit] stopGauntletWatchdog:', e); }
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[quit] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[quit] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[quit] broker.stop:', e); }
@@ -3224,6 +3532,9 @@ function teardownAndQuit(): void {
   try { memory.stop(); } catch (e) { console.error('[quit] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
+  void gauntletControl?.stop();
+  gauntletControl = null;
+  try { gauntletBackend?.close(); } catch (e) { console.error('[quit] gauntlet.close:', e); }
   try { hive.stopAllProxyBridges(); } catch (e) { console.error('[quit] stopAllProxyBridges:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
   app.quit();
@@ -3270,6 +3581,7 @@ ipcMain.handle('app:resetAll', () => {
   // Tear everything down first so nothing writes back into the dirs we wipe.
   try { clearMissionTimers(); } catch (e) { console.error('[reset] clearMissionTimers:', e); }
   try { clearContextTimers(); } catch (e) { console.error('[reset] clearContextTimers:', e); }
+  try { stopGauntletWatchdog(); } catch (e) { console.error('[reset] stopGauntletWatchdog:', e); }
   try { stopWebhookDoneObserver(); } catch (e) { console.error('[reset] stopWebhookDoneObserver:', e); }
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[reset] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[reset] broker.stop:', e); }
@@ -3280,8 +3592,11 @@ ipcMain.handle('app:resetAll', () => {
   try { memory.stop(); } catch (e) { console.error('[reset] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[reset] reflector.stop:', e); }
   try { persist.close(); } catch (e) { console.error('[reset] persist.close:', e); }
+  void gauntletControl?.stop();
+  gauntletControl = null;
+  try { gauntletBackend?.close(); } catch (e) { console.error('[reset] gauntlet.close:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[reset] killAll:', e); }
-  // Erase the hive (Michael's + every agent's memory, inboxes, tasks, board,
+  // Erase the hive (Conductor's + every agent's memory, inboxes, tasks, board,
   // git history) and the semantic-memory palace. Only these harness-created
   // subdirs are removed — never the user's whole harnessHome folder.
   for (const dir of [hive.root(), memory.palacePath()]) {
@@ -3320,12 +3635,12 @@ ipcMain.handle('hive:agentContext', (_evt, agentId: unknown) => {
 });
 
 // A consolidated, NON-SENSITIVE per-agent directory for the voice read-layer
-// (Realtime Michael's get_agent_detail / list_agents). One read that joins
+// (Realtime Conductor's get_agent_detail / list_agents). One read that joins
 // everything the office-floor sidebar + telemetry know per agent: the registry
 // record (name/role/provider/cwd/status/archived/isGod/isAssistant/sessionId/
 // cwdValid), live token + breaker + last-tool telemetry, and the current context
 // window fill. Includes ARCHIVED agents (unlike the heartbeat's fleet.json, which
-// is live-only) so Michael can speak to inactive agents — their cwd and memory
+// is live-only) so Conductor can speak to inactive agents — their cwd and memory
 // stay reachable. PII-free: no secrets, env, or API keys ever leave main; cost is
 // carried as tokens (+ a usd field the voice layer deliberately never speaks).
 ipcMain.handle('hive:agentDirectory', () => {
@@ -3833,23 +4148,23 @@ ipcMain.handle('freeflow:transcribe', async (_evt, arg: unknown) => {
   return out;
 });
 
-// ─── IPC: Realtime Michael (voice orchestrator — ephemeral token mint, rt-1) ──
+// ─── IPC: Realtime Conductor (voice orchestrator — ephemeral token mint, rt-1) ──
 // MAIN owns the BYOK OpenAI key (encrypted broker, apikey:openai) and mints a
 // short-lived EPHEMERAL client secret; the real key never crosses IPC. All wiring
 // lives in ./realtime so this stays a single registration line.
 registerRealtimeIpc();
 
-// ─── IPC: Realtime Michael voice ACTIONS (rt-5, Phase 2) ─────────────────────
+// ─── IPC: Realtime Conductor voice ACTIONS (rt-5, Phase 2) ─────────────────────
 // Thin adapters over the SAME main fns the god PTY already uses. ALL of the safety
 // spine — soft-vs-destructive tiering, the two-step verbal echo-back confirm, the
 // distinct-token rule, the hard allowlist (kill-god / mass-ops forbidden), and the
 // michael-voice attribution — lives in ./realtimeActions. This site only injects
 // the existing functions; it adds NO new orchestration logic.
-// ─── IPC: Realtime Michael completion watcher (rt-12, Phase 2) ───────────────
+// ─── IPC: Realtime Conductor completion watcher (rt-12, Phase 2) ───────────────
 // Jim's net-new engine (realtimeCompletionWatcher.ts) detects a voice-dispatched
 // task finishing (card→done OR a done-reply in michael-voice's inbox) and EMITS it;
 // I own the seam — inject the hive read deps, push completions to the live session
-// (so Michael speaks them unprompted), and bridge waitFor / queue-drain over IPC.
+// (so Conductor speaks them unprompted), and bridge waitFor / queue-drain over IPC.
 const completionWatcher = initCompletionWatcher({
   readTasks: () => { const t = hive.tasks() as { tasks?: TaskCard[] }; return Array.isArray(t?.tasks) ? t.tasks : []; },
   // Voice dispatches go out as from:michael-voice, so assignee done-replies land here.
@@ -3858,7 +4173,7 @@ const completionWatcher = initCompletionWatcher({
     // inbox — but an assignee may address god out of habit. Merge both inboxes (de-dupe
     // by id) so a god-addressed completion isn't missed; the detector filters by sender.
     try {
-      const mv = hive.inbox('michael-voice') as unknown as InboxMessage[];
+      const mv = hive.inbox('conductor-voice') as unknown as InboxMessage[];
       const godId = hive.registry().godId;
       const god = godId ? (hive.inbox(godId) as unknown as InboxMessage[]) : [];
       const seen = new Set<string>();
@@ -3867,7 +4182,7 @@ const completionWatcher = initCompletionWatcher({
       return [];
     }
   },
-  onNotify: (evt) => { try { if (Notification.isSupported()) new Notification({ title: 'Michael', body: evt.summary }).show(); } catch { /* best-effort */ } }
+  onNotify: (evt) => { try { if (Notification.isSupported()) new Notification({ title: 'Conductor', body: evt.summary }).show(); } catch { /* best-effort */ } }
 });
 
 registerRealtimeActionIpc({
@@ -4425,7 +4740,7 @@ function bootstrapHiveServices(): void {
 }
 
 /** (Re)arm the always-on beats (decoupled from the optional heartbeat): the live
- *  fleet snapshot Michael reads (~8s) + the breaker/cost-ledger beat (~30s).
+ *  fleet snapshot Conductor reads (~8s) + the breaker/cost-ledger beat (~30s).
  *  Guarded (clear-then-set) so a re-bootstrap (changeHome recovery) OR a
  *  powerMonitor resume can't stack duplicate timers — these are setInterval
  *  handles that freeze during true system sleep and must be re-armed on wake. */
@@ -4518,8 +4833,8 @@ function onSystemResume(reason: string): void {
   }, 15_000);
 }
 
-app.whenReady().then(() => {
-  // Realtime Michael mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session
+app.whenReady().then(async () => {
+  // Realtime Conductor mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session
   // opens the mic permission gate by persisting realtimeVoiceEnabled=true and
   // closes it on disconnect — but a hard crash/reload mid-session skips that
   // teardown, leaving the flag stuck true so the gate would boot PRE-OPEN with no
@@ -4537,7 +4852,7 @@ app.whenReady().then(() => {
   });
 
   // A cold-start deep link (Windows/Linux) rides in on OUR argv.
-  const startupHireLink = process.argv.find((a) => a.startsWith('munderdifflin://'));
+  const startupHireLink = process.argv.find((a) => a.startsWith('atelier://'));
   if (startupHireLink) void handleHireLink(startupHireLink);
 
   // Hand every spawned agent the path to the Slack reply discovery file via the
@@ -4549,6 +4864,30 @@ app.whenReady().then(() => {
   // Guarded: a DB failure (e.g. a bad native build) must degrade to defaults,
   // never block app startup.
   try { persist.open(); } catch (e) { console.error('[db] open failed:', e); }
+  try {
+    const primitiveOverride = process.env.ATELIER_AGENT_PRIMITIVES_PATH?.trim();
+    const primitiveRoot = primitiveOverride
+      ? resolve(primitiveOverride)
+      : app.isPackaged
+        ? join(process.resourcesPath, 'agent-primitives')
+        : join(app.getAppPath(), 'vendor', 'agent-primitives');
+    gauntletBackend = new LocalGauntletBackend({
+      stateRoot: app.getPath('userData'),
+      primitiveRoot,
+      primitiveExpectedCommit: primitiveOverride ? null : undefined
+    });
+    gauntletBackend.open();
+    gauntletControl = new GauntletControlServer(app.getPath('userData'), gauntletBackend, (snapshot) => {
+      publishGauntlet(snapshot);
+      void advanceGauntlet(snapshot.run.id);
+    });
+    await gauntletControl.start();
+  } catch (e) {
+    try { await gauntletControl?.stop(); } catch { /* best effort */ }
+    gauntletControl = null;
+    gauntletBackend = null;
+    console.error('[gauntlet] open failed:', e);
+  }
   // Auto-update from GitHub releases (packaged builds only; gated on the
   // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
   // never restarts on its own. Falls back to a notify-only releases/latest
@@ -4556,6 +4895,13 @@ app.whenReady().then(() => {
   initAutoUpdater(() => liveWebContents());
   // Bootstrap the hive (if harnessHome is configured) and start the message router.
   bootstrapHiveServices();
+  if (gauntletBackend) {
+    for (const snapshot of gauntletBackend.reconcileAfterRestart()) {
+      publishGauntlet(snapshot);
+      void advanceGauntlet(snapshot.run.id);
+    }
+    startGauntletWatchdog();
+  }
   // Survive sleep/lock. macOS freezes libuv timers during true system sleep, so a
   // locked/idle/slept Mac stops firing schedules and can wedge PTYs. On wake we
   // re-arm the scheduler (catching up missed missions ONCE) + beats + keep-awake,

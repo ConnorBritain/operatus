@@ -1,5 +1,5 @@
 /**
- * Realtime Michael — read-tools (rt-4, Realtime Michael Phase 1).
+ * Realtime Conductor — read-tools (rt-4, Realtime Conductor Phase 1).
  *
  * The real function-tools that replace rt-2's placeholder no-op. Each one is a
  * thin, READ-ONLY wrapper over a window.cth bridge that already powers the office
@@ -115,7 +115,7 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'get_fleet_status',
       description:
-        'Who is in the agent hive right now: how many agents, which are active versus archived, who the god orchestrator is, and each active agent name, role, and engine. Call this when the user asks who is working, who is on the floor, or for a roster.',
+        'Who is in the agent hive right now: how many agents, which are active versus archived, who the Conductor is, and each active agent name, role, and engine. Call this when the user asks who is working, who is on the floor, or for a roster.',
       parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
       execute: () =>
         spoken(async () => {
@@ -139,7 +139,7 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
           const head = `There ${active.length === 1 ? 'is' : 'are'} ${plural(active.length, 'agent')} active${
             archived ? ` and ${plural(archived, 'archived agent')}` : ''
           }.`;
-          const god = godName ? ` ${godName} is the god orchestrator.` : '';
+          const god = godName ? ` ${godName} is the Conductor.` : '';
           const roster = lines.length ? ` Active workers: ${lines.join('; ')}.` : '';
           return head + god + roster;
         }, 'fleet status')
@@ -263,7 +263,7 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'get_config',
       description:
-        'The non-sensitive hive settings: autonomy mode, the default model and god engine, budget caps, worker limits, the circuit breaker, and which features are on. Never returns secrets or API keys. Call this when the user asks how the hive is configured, what the limits or budgets are, or whether a feature is enabled.',
+        'The non-sensitive hive settings: autonomy mode, the default model and Conductor engine, budget caps, worker limits, the circuit breaker, and which features are on. Never returns secrets or API keys. Call this when the user asks how the hive is configured, what the limits or budgets are, or whether a feature is enabled.',
       parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
       execute: () =>
         spoken(async () => {
@@ -277,7 +277,7 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
           parts.push(`Autonomy mode is ${c.autoMode ? 'on' : 'off'}.`);
           if (c.defaultModel) parts.push(`The default model is ${c.defaultModel}.`);
           if (c.godProvider || c.godModel)
-            parts.push(`The god orchestrator runs ${[c.godProvider, c.godModel].filter(Boolean).join(' ')}.`);
+            parts.push(`Conductor runs ${[c.godProvider, c.godModel].filter(Boolean).join(' ')}.`);
           if (typeof cc.maxConcurrentWorkers === 'number')
             parts.push(`Up to ${plural(cc.maxConcurrentWorkers, 'worker')} run concurrently.`);
           // De-monetized: report only the token cap (no dollar cap), and avoid
@@ -468,7 +468,7 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
       parameters: {
         type: 'object',
         properties: {
-          agentId: { type: 'string', description: 'The agent id or friendly name to look up (e.g. "kevin-mqpbq43v" or "Kevin").' }
+          agentId: { type: 'string', description: 'The agent id or friendly name to look up (e.g. "builder-mqpbq43v" or "Builder").' }
         },
         required: ['agentId'],
         additionalProperties: false
@@ -602,20 +602,20 @@ export function realtimeReadTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'get_app_info',
       description:
-        'About the Munder Difflin app itself: the running version and the latest release notes (changelog). Use for "what version is this" or "what is new in this release".',
+        'About the Atelier app itself: the running version and the latest release notes (changelog). Use for "what version is this" or "what is new in this release".',
       parameters: { type: 'object', properties: {}, required: [], additionalProperties: false },
       execute: () =>
         spoken(async () => {
           const info = await window.cth.appInfo();
           const notes = despan(info.changelog || '');
-          return `This is Munder Difflin version ${info.version}. ${notes ? `Latest release notes: ${clip(notes, 1600)}` : 'No release notes are bundled with this build.'}`;
+          return `This is Atelier version ${info.version}. ${notes ? `Latest release notes: ${clip(notes, 1600)}` : 'No release notes are bundled with this build.'}`;
         }, 'app info')
     })
   ];
 }
 
 /**
- * A short, preloaded orientation Michael can open the session with — the hive
+ * A short, preloaded orientation Conductor can open the session with — the hive
  * size, who god is, and how many tasks are in flight — so the first answer is
  * grounded without a tool round-trip. Best-effort: returns '' if reads fail, so
  * the caller can safely concatenate it onto the agent instructions.
@@ -657,7 +657,7 @@ export async function realtimeSessionSummary(): Promise<string> {
       `Per agent: ${lines.join(' | ') || 'none'}. ` +
       taskLine +
       ` You will also receive short "(Floor update: …)" notes as things change mid-call — trust those over this snapshot.` +
-      ` You share the floor with god (the typing orchestrator); the board is the single source of truth.`
+      ` You share the floor with Conductor (the typing orchestrator); the board is the single source of truth.`
     );
   } catch {
     return '';

@@ -1,8 +1,8 @@
 /**
- * Realtime Michael — microphone & speaker device picker (card rt-8, Phase 1).
+ * Realtime Conductor — microphone & speaker device picker (card rt-8, Phase 1).
  *
  * Lets the user choose WHICH microphone the voice loop captures and WHICH speaker
- * it plays Michael's voice through. Selections are held in the realtime session
+ * it plays Conductor's voice through. Selections are held in the realtime session
  * store via `setDeviceId()` / `setOutputDeviceId()` (see session.ts): the mic is
  * applied on the next connect() (getUserMedia `{ deviceId: { exact } }`), the
  * speaker is applied immediately to the live `<audio>` sink via `setSinkId()` (and
@@ -123,7 +123,7 @@ export function RealtimeDevicePicker(): React.ReactElement {
       {!labelled && (
         <span style={{ fontSize: 12, lineHeight: '16px', color: 'var(--cth-ink-500)' }}>
           Device names appear after you first start a voice session and grant mic access.
-          The microphone choice applies the next time Michael connects; the speaker switches live.
+          The microphone choice applies the next time Conductor connects; the speaker switches live.
         </span>
       )}
     </div>

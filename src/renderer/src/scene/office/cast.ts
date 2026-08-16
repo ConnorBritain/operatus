@@ -1,10 +1,10 @@
-// The Office cast — roster metadata + sprite frames.
+// Atelier floor operators — roster metadata + sprite frames.
 //
 // Both the static portraits (cards / picker) and the in-scene walking sprites are
 // now fully custom-drawn from the same per-character recipes in portraitArt.ts:
 // the scene sprite reuses the portrait's exact head/face/clothing and adds legs,
-// so an agent on the office floor looks identical to its card. The LimeZu base
-// sheets are no longer used for the cast. See assets/ATTRIBUTION.md.
+// so an agent on the operations floor looks identical to its card. No legacy
+// character sheets are used. See assets/ATTRIBUTION.md.
 
 import { Texture } from 'pixi.js';
 import { paintPortrait, sceneFrameBufs, SCENE_W, SCENE_H } from './portraitArt';
@@ -25,21 +25,21 @@ export interface CastMember {
 
 /** Selectable roster, in display order. */
 export const OFFICE_CAST: CastMember[] = [
-  { name: 'michael',  displayName: 'Michael',  shirt: '#5a6b8c', blurb: "World's best boss" },
-  { name: 'jim',      displayName: 'Jim',      shirt: '#6fa8dc', blurb: 'Salesman, prankster' },
-  { name: 'pam',      displayName: 'Pam',      shirt: '#9caf88', blurb: 'Receptionist, artist' },
-  { name: 'dwight',   displayName: 'Dwight',   shirt: '#b89b3e', blurb: 'Assistant (to the) RM' },
-  { name: 'kevin',    displayName: 'Kevin',    shirt: '#4a7ab5', blurb: 'Accounting' },
-  { name: 'angela',   displayName: 'Angela',   shirt: '#8a86a6', blurb: 'Head of accounting' },
-  { name: 'oscar',    displayName: 'Oscar',    shirt: '#7a4b6b', blurb: 'Accountant' },
-  { name: 'stanley',  displayName: 'Stanley',  shirt: '#8c5a4b', blurb: 'Sales, crossword' },
-  { name: 'phyllis',  displayName: 'Phyllis',  shirt: '#b08bbf', blurb: 'Sales' },
-  { name: 'andy',     displayName: 'Andy',     shirt: '#6fae6f', blurb: 'Cornell, a cappella' },
-  { name: 'kelly',    displayName: 'Kelly',    shirt: '#d16ba5', blurb: 'Customer service' },
-  { name: 'ryan',     displayName: 'Ryan',     shirt: '#3a3a44', blurb: 'The temp' },
-  { name: 'toby',     displayName: 'Toby',     shirt: '#9a8c5a', blurb: 'Human resources' },
-  { name: 'creed',    displayName: 'Creed',    shirt: '#6b7a4b', blurb: 'Quality assurance' },
-  { name: 'meredith', displayName: 'Meredith', shirt: '#b5544a', blurb: 'Supplier relations' },
+  { name: 'michael',  displayName: 'Conductor', shirt: '#596b8f', blurb: 'Owns intent and acknowledgment' },
+  { name: 'jim',      displayName: 'Builder',   shirt: '#4f8fc9', blurb: 'Implements exact scoped changes' },
+  { name: 'pam',      displayName: 'Navigator', shirt: '#75a58d', blurb: 'Repository and product orientation' },
+  { name: 'dwight',   displayName: 'Analyst',   shirt: '#c49b45', blurb: 'Deep technical investigation' },
+  { name: 'kevin',    displayName: 'Operator',  shirt: '#456fa8', blurb: 'Runs checks and captures evidence' },
+  { name: 'angela',   displayName: 'Auditor',   shirt: '#807ca0', blurb: 'Verifies constraints and receipts' },
+  { name: 'oscar',    displayName: 'Critic',    shirt: '#815170', blurb: 'Fresh independent review' },
+  { name: 'stanley',  displayName: 'Sentry',    shirt: '#8f5f51', blurb: 'Watches budgets and convergence' },
+  { name: 'phyllis',  displayName: 'Planner',   shirt: '#a77db8', blurb: 'Shapes bounded work packets' },
+  { name: 'andy',     displayName: 'Integrator',shirt: '#63a36f', blurb: 'Tracks boundaries and compatibility' },
+  { name: 'kelly',    displayName: 'Reporter',  shirt: '#c75b9a', blurb: 'Turns evidence into clear status' },
+  { name: 'ryan',     displayName: 'Runner',    shirt: '#414653', blurb: 'Executes focused short missions' },
+  { name: 'toby',     displayName: 'Custodian', shirt: '#94885b', blurb: 'Maintains policy and provenance' },
+  { name: 'creed',    displayName: 'Probe',     shirt: '#66794f', blurb: 'Falsifies assumptions and edge cases' },
+  { name: 'meredith', displayName: 'Repairer',  shirt: '#b05b54', blurb: 'Applies accepted bounded repairs' },
 ];
 
 export const CAST_BY_NAME: Record<OfficeCharacterName, CastMember> =

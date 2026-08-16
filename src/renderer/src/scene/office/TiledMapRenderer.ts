@@ -132,11 +132,25 @@ export class TiledMapRenderer {
   private parseCollisionLayer(): void {
     const layer = this.findLayer(COLLISION_LAYER, 'tilelayer');
     this.walkabilityGrid = Array.from({ length: this.height }, () => Array(this.width).fill(true));
-    if (!layer?.data) return;
-    for (let y = 0; y < this.height; y++) {
-      for (let x = 0; x < this.width; x++) {
-        const rawId = layer.data[y * this.width + x];
-        if ((rawId & TILE_ID_MASK) !== 0) this.walkabilityGrid[y][x] = false;
+    if (layer?.data) {
+      for (let y = 0; y < this.height; y++) {
+        for (let x = 0; x < this.width; x++) {
+          const rawId = layer.data[y * this.width + x];
+          if ((rawId & TILE_ID_MASK) !== 0) this.walkabilityGrid[y][x] = false;
+        }
+      }
+    }
+    // Atelier's clean-room floor uses one authored background image plus Tiled
+    // rectangle objects for collision. This keeps the familiar map/spawn/zone
+    // contract without requiring any legacy tile atlas or copied tile indices.
+    const objects = this.findLayer(COLLISION_LAYER, 'objectgroup')?.objects ?? [];
+    for (const object of objects) {
+      const left = Math.floor(object.x / this.tileSize);
+      const top = Math.floor(object.y / this.tileSize);
+      const right = Math.ceil((object.x + (object.width ?? 0)) / this.tileSize);
+      const bottom = Math.ceil((object.y + (object.height ?? 0)) / this.tileSize);
+      for (let y = Math.max(0, top); y < Math.min(this.height, bottom); y++) {
+        for (let x = Math.max(0, left); x < Math.min(this.width, right); x++) this.walkabilityGrid[y][x] = false;
       }
     }
   }
@@ -186,9 +200,7 @@ export class TiledMapRenderer {
   }
 
   private buildTileLayers(): void {
-    if (this.mapData.tilesets.length === 0) return;
-
-    for (const layerName of TILE_LAYERS) {
+    for (const layerName of this.mapData.tilesets.length === 0 ? [] : TILE_LAYERS) {
       const layer = this.findLayer(layerName, 'tilelayer');
       const container = new Container();
       container.label = layerName;

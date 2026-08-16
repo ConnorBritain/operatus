@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Application, Container, Graphics, Ticker, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Ticker, Texture } from 'pixi.js';
 // PixiJS uses new Function() internally, blocked by Electron CSP — this patches it.
 import 'pixi.js/unsafe-eval';
 import { useStore, type Agent } from '@/store/store';
@@ -14,6 +14,7 @@ import { colors } from '@/design/tokens';
 import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
 import { installContextLossRecovery } from './glRecovery';
 import type { Tile, Facing, ErrandKind, ErrandSpot } from './themeRegistry';
+import { branchTheme } from '@shared/branchIdentity';
 
 // The map, tileset atlases, desk-claim order, errand spots, coffee-economy
 // tiles, prop anchors, monitor gids and palette all come from the active
@@ -93,11 +94,11 @@ const ERRAND_THOUGHTS: Record<ErrandKind, readonly string[]> = {
 /** What workers blurt out when the boss walks by — performative excellence.
  *  `{done}` is replaced with that worker's REAL done-task count. */
 const SUCK_UP_LINES = [
-  'already shipped {done} tasks, Michael. raise? 🥺',
+  'already shipped {done} tasks, Conductor. raise? 🥺',
   '{done} tasks done this week, boss!',
   'great vision as always, boss!',
   'I was JUST about to do exactly that!',
-  'love the tie today, Michael',
+  'love the tie today, Conductor',
   'working hard, boss! 💪',
   'best boss ever. genuinely.'
 ] as const;
@@ -106,7 +107,7 @@ const SUCK_UP_LINES = [
 const GOSSIP_LINES = [
   'has he ever actually written code?',
   "another 'quick sync' that took an hour…",
-  "'world's best boss' — he bought that mug himself",
+  "another inspirational plaque appeared overnight",
   'he pinned MY task as his idea',
   'the cigar smell, honestly…',
   'he watered the plant. ONE plant. his own.',
@@ -167,6 +168,8 @@ export function OfficeFloor() {
   // The active office theme (store mirror of config.officeTheme). Changing it
   // tears down and rebuilds the whole scene on the new map/cast (see deps below).
   const officeTheme = useStore((s) => s.officeTheme);
+  const branchProfile = useStore((s) => s.branchProfile);
+  const branchVisual = branchTheme(branchProfile.themeId);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -231,12 +234,19 @@ export function OfficeFloor() {
       const tilesetTextures = await Promise.all(
         themeTilesetUrls(theme).map(loadTexture),
       );
+      const backgroundTexture = theme.backgroundUrl ? await loadTexture(theme.backgroundUrl) : null;
       if (mountIdRef.current !== mountId) { safeDestroy(app); return; }
 
       const world = new Container();
       app.stage.addChild(world);
 
       const mapRenderer = new TiledMapRenderer(resolveThemeMap(theme), tilesetTextures);
+      if (backgroundTexture) {
+        const background = new Sprite(backgroundTexture);
+        background.width = mapRenderer.width * mapRenderer.tileSize;
+        background.height = mapRenderer.height * mapRenderer.tileSize;
+        world.addChild(background);
+      }
       world.addChild(mapRenderer.getContainer());
       const charLayer = mapRenderer.getCharacterContainer();
       const tileCount = mapRenderer.getContainer().children.reduce(
@@ -250,7 +260,7 @@ export function OfficeFloor() {
 
       // ─── The boss's wall calendar → TRIGGERS ───────────────────────────────
       // A little tear-off month page hangs on the CEO office wall. Clicking it
-      // selects Michael (the god) and opens the Command Center's TRIGGERS tab —
+      // selects Conductor (the god) and opens the Command Center's TRIGGERS tab —
       // everything that wakes the hive without you, schedules first among them.
       const calTs = mapRenderer.tileSize;
       const calG = new Graphics();
@@ -326,7 +336,7 @@ export function OfficeFloor() {
       }
       if (waitTiles.length === 0) waitTiles.push(entrance);
 
-      // Seat 0 is desk-ceo — "Michael's room" — reserved for the god agent.
+      // Seat 0 is desk-ceo — "Conductor's room" — reserved for the god agent.
       // All other workers claim seats from 1 onward.
       const GOD_SEAT = 0;
       const claimSeat = (agent: Agent): number | null => {
@@ -844,7 +854,7 @@ export function OfficeFloor() {
         if (free.length === 0) return;
         const idx = free[Math.floor(Math.random() * free.length)];
         const spot = ERRAND_SPOTS[idx];
-        // Pick the performer. The CEO office's spots belong to Michael alone —
+        // Pick the performer. The CEO office's spots belong to Conductor alone —
         // and unlike workers he runs his errands FROM his desk (he's seated
         // while idle, so the sitting check doesn't apply to him).
         let agent: Agent | undefined;
@@ -887,10 +897,10 @@ export function OfficeFloor() {
         });
       };
 
-      // ─── The boss aura: performative excellence in Michael's presence ──────
+      // ─── The boss aura: performative excellence in Conductor's presence ──────
       // When the god's avatar wanders close to a worker, the worker bursts
       // into suck-up mode — including REAL stats ("already shipped N tasks,
-      // Michael. raise?" with N from the actual ledger). What they say once
+      // Conductor. raise?" with N from the actual ledger). What they say once
       // he's out of earshot is a different story (see emitQuip's gossip).
       const lastSuckUp = new Map<string, number>();
       let doneByAssignee = new Map<string, number>();
@@ -972,7 +982,7 @@ export function OfficeFloor() {
       // assignee) literally TAKES THE NOTE ALONG: it leaves the boards and
       // sticks to that worker's desk instead. Finished tasks archive as a green
       // stack on the little table at the end. Clicking any of it selects
-      // Michael and opens the Command Center's tasks tab.
+      // Conductor and opens the Command Center's tasks tab.
       const BOARD_TILE: Tile = theme.anchors.boards;
       // The ensemble (two boards + archive table) is 82px wide; the wall run
       // between the two doorways spans tiles 6..12 (112px) — center it.
@@ -1067,7 +1077,7 @@ export function OfficeFloor() {
       drawTaskBoard([]);
 
       // ─── The office clock: clicking it is CLOCKING OUT ─────────────────────
-      // The wall clock beside Michael's window doubles as the quit entry:
+      // The wall clock beside Conductor's window doubles as the quit entry:
       // a click runs the real close flow (window.close() → the main process
       // intercepts while agents run → the "Quitting now?" dialog with its
       // closing-time option). The office clock literally opens quitting time.
@@ -1131,7 +1141,7 @@ export function OfficeFloor() {
       drawAskBoard(0);
 
       // ─── Board choreography: every ledger move is ACTED on the floor ───────
-      // Michael walks over and pins fresh cards; an assigned worker walks to
+      // Conductor walks over and pins fresh cards; an assigned worker walks to
       // the TODO board, takes its note and carries it home; finishing carries
       // the note to the archive table; a card going blocked gets walked to the
       // red board. While a move is in flight, the boards keep showing the OLD
@@ -1694,16 +1704,30 @@ export function OfficeFloor() {
   }, [officeTheme, glGeneration]);
 
   return (
-    <div
-      ref={hostRef}
-      style={{
-        width: '100%', height: '100%',
-        boxShadow: 'var(--cth-panel-border)',
-        overflow: 'hidden',
-        imageRendering: 'pixelated',
-        background: hex(colors.ink[900]),
-      }}
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', boxShadow: 'var(--cth-panel-border)' }}>
+      <div
+        ref={hostRef}
+        style={{
+          width: '100%', height: '100%',
+          overflow: 'hidden',
+          imageRendering: 'pixelated',
+          background: hex(colors.ink[900]),
+        }}
+      />
+      <div aria-hidden="true" style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: `linear-gradient(145deg, ${branchVisual.wash}20 0 58%, ${branchVisual.accent}24 100%)`,
+        boxShadow: `inset 0 5px 0 ${branchVisual.accent}`
+      }} />
+      <div style={{
+        position: 'absolute', top: 12, left: 12, pointerEvents: 'none',
+        padding: '6px 9px 5px', background: `${branchVisual.wash}ee`, color: branchVisual.ink,
+        boxShadow: `inset 0 0 0 2px ${branchVisual.accent}, 0 2px 8px #0002`,
+        fontFamily: 'var(--cth-font-display)', fontSize: 9, letterSpacing: 0.4, textTransform: 'uppercase'
+      }}>
+        {branchProfile.name} · {branchVisual.label}
+      </div>
+    </div>
   );
 }
 

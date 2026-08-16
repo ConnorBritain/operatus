@@ -1,13 +1,12 @@
 # Memory Graph Visualization — Spec (Phase 1)
 
-**Feature #8** of the Munder Difflin harness roadmap · author: Jim · branch `feature/memory-graph`
-**Status:** awaiting god sign-off. No component code is written yet — this document is the contract for Phase 2.
+Inherited feature specification, retained for the renderer's memory graph implementation.
 
 ---
 
 ## 1. Goal
 
-Give Michael (god) a single glance answer to: *who is talking to whom, and what does the hive collectively know?*
+Give the Conductor a single-glance answer to: *who is talking to whom, and what does the hive collectively know?*
 
 The graph is a new **`graph` tab** in the Command Center (`CommandCenterPanel.tsx`) that draws the hive as a network — agents as nodes, the messages between them as edges, and (optionally) the topics each agent's memory file covers as a second layer. It is a read + navigate surface: click a node to jump into that agent's memory; hover to preview without leaving the graph.
 

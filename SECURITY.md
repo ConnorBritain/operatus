@@ -1,38 +1,27 @@
-# Security Policy
+# Security policy
 
 ## Scope
 
-Munder Difflin is a **local-first desktop app**. It spawns local processes in PTYs and
-reads/writes files under directories you register. It opens **no network listeners
-beyond a local Unix domain socket** used for the in-app hook server, and has no auth or
-remote surface by design.
+Atelier is a local-first desktop application that spawns CLI coding agents in PTYs and works in repositories a user selects. Its Gauntlet control socket is local-only, permission-restricted, size-bounded, and requires a Conductor or per-launch scoped token. The renderer has no direct Node access and cannot impersonate workers, Critics, or Conductor acknowledgments.
+
+Optional Slack, webhook, voice, integration, update, and analytics features can use the network when explicitly configured. Updater and analytics destinations are disabled by default for the Atelier milestone. A future remote portal must use authenticated device pairing, encrypted envelopes, replay protection, redaction policy, and destination-side authority checks; no unauthenticated listener or automatic public tunnel is permitted.
 
 ## Supported versions
 
-This is an early prototype. Security fixes target the `main` branch only.
-
-| Version | Supported |
-|---|---|
-| `main` | ✅ |
-| older tags | ❌ |
+Security fixes currently target `main` and the active milestone branch only. No installer release is supported yet.
 
 ## Reporting a vulnerability
 
-Please **do not** open a public issue for security problems.
+Do not open a public issue containing exploit details. Use GitHub's **Security → Report a vulnerability** flow for [ConnorBritain/atelier](https://github.com/ConnorBritain/atelier/security/advisories/new). Include reproduction steps, affected revision, impact, and any suggested mitigation.
 
-- Use GitHub's **private vulnerability reporting**: the *Security → Report a
-  vulnerability* tab on https://github.com/chaitanyagiri/munder-difflin, **or**
-- Email **girichaitanya11@gmail.com** with a description, reproduction steps, and
-  impact.
+## Reviewer priorities
 
-You can expect an acknowledgement within a few days. Once a fix is available we'll
-credit you (unless you prefer to stay anonymous).
+- Main/renderer IPC schemas and path validation
+- local socket permissions, scoped tokens, request limits, and stale-action rejection
+- exact Git SHA/worktree identity and Critic mutation detection
+- Skill Depot Git pinning, path traversal, symlink, digest, and materialization boundaries
+- provider capability receipts and any advisory-versus-enforced mismatch
+- secrets, prompts, paths, evidence, and terminal output crossing remote projections
+- optional network endpoints, SSRF controls, webhook authentication, and credential storage
 
-## Notes for reviewers
-
-- Renderer ↔ main IPC goes through a typed `contextBridge` (`window.cth`); the renderer
-  has no direct Node access (`nodeIntegration: false`, `contextIsolation: true`).
-- All `fs:*` / `git:*` IPC calls are sandboxed and path-validated in the main process,
-  rooted at an agent's working directory.
-- The hive commits to a local git repo from a **single committer** (the main process);
-  agents only write plain files.
+See [docs/GAUNTLET.md](docs/GAUNTLET.md) and [docs/architecture/remote-portal.md](docs/architecture/remote-portal.md).

@@ -274,7 +274,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
         <span style={{
           fontFamily: 'var(--cth-font-display)', fontSize: 12, lineHeight: '20px',
           color: 'var(--cth-ink-900)'
-        }}>MUNDER DIFFLIN · FULLSCREEN</span>
+        }}>ATELIER · FULLSCREEN</span>
         {/* Same top-right controls as the main title bar — fullscreen covers
             it, so theme / exit-fullscreen / IDE must live here too. */}
         <div className="cth-titlebar-nodrag" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -501,7 +501,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
           padding: 12, gap: 10
         }}>
           {agent.isGod ? (
-            // Michael runs the floor from the command center — its tabs (tasks,
+            // Conductor runs the floor from the command center — its tabs (tasks,
             // ask me, triggers, memory, graph…) are the whole point of selecting
             // him, and fullscreen used to drop them for a bare terminal.
             // Column so the panel's `height: 100%` resolves against a definite
@@ -814,10 +814,10 @@ function Header({ agent }: { agent: Agent }) {
             <Icon name="code" /> IDE
           </span>
         </PixelButton>
-        {/* Voice toggle is ALWAYS reachable in fullscreen — it controls Michael (the
+        {/* Voice toggle is ALWAYS reachable in fullscreen — it controls Conductor (the
             god orchestrator) globally, not the agent in view, so users can start a
             voice session even while a worker's terminal fills the screen. The cost
-            HUD stays Michael-only (it belongs to his card). */}
+            HUD stays Conductor-only (it belongs to his card). */}
         <RealtimeMichaelToggle />
         {agent.isGod && <CostHud compact />}
         <PixelBadge status={typing ? 'typing' : agent.status} />

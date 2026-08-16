@@ -2,35 +2,40 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "agent/**"]
   pull_request:
     branches: [main]
 
-jobs:
-  typecheck:
-    name: Typecheck
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Typecheck (node + web)
-        run: npm run typecheck
+permissions:
+  contents: read
 
-  build:
-    name: Build
+jobs:
+  verify:
+    name: Atelier milestone verification
     runs-on: macos-latest
-    # Build exercises the native node-pty rebuild; allowed to fail without blocking.
-    continue-on-error: true
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      - name: Install native and JavaScript dependencies
+        run: npm ci
+      - name: Typecheck main, preload, and renderer
+        run: npm run typecheck
+      - name: Verify deterministic Gauntlet protocol
+        run: npm run test:gauntlet
+      - name: Verify retained runtime seams
+        run: npm run test:focused
+      - name: Build Electron development assets
+        run: npm run build
+      - name: Verify Atelier identity and redistributable assets
+        run: npm run check:atelier-assets
+      - name: Package unsigned macOS development app
+        run: npx electron-builder --mac --dir --publish never
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"

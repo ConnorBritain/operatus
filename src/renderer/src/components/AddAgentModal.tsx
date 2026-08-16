@@ -78,15 +78,15 @@ const DESCRIPTION_TEMPLATES: { label: string; description: string; goal: string 
 // the exact JSON shape the importer accepts and ends with a fill-in section so the
 // user adds their own details (item 7). Kept in sync with the HireManifest schema
 // (src/shared/hire.ts) — provider allowlist is claude | codex | antigravity.
-const HIRE_PROMPT = `You are designing a "hire" — a ready-to-spawn AI agent for Munder Difflin, an app that runs a team of CLI coding agents. Output ONE JSON object (a hire manifest) and nothing else.
+const HIRE_PROMPT = `You are designing a "hire" — a ready-to-spawn AI agent for Atelier, an app that runs a team of CLI coding agents. Output ONE JSON object (a hire manifest) and nothing else.
 
 Make the agent genuinely useful: give it a sharp role, a concrete standing goal, and a description that makes it behave like an expert operator of its CLI engine (Claude Code, Codex, or Antigravity/Gemini). It should know how to use the terminal, read and edit files, run and inspect commands, lean on available skills and MCP tools, keep notes in memory, and work autonomously toward its goal without hand-holding.
 
 Return EXACTLY this shape (omit optional fields you don't need; keep the spec string verbatim):
 
 {
-  "spec": "munder-difflin/hire@1",
-  "name": "Jim",
+  "spec": "atelier/hire@1",
+  "name": "Builder",
   "description": "one-line role — what this agent is for",
   "goal": "standing directive injected on every prompt — specific and outcome-oriented",
   "provider": "claude",
@@ -161,7 +161,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
   const initialProvider = inferAgentProvider(config.defaultCommand);
   const initialModel = isClaudeProvider(initialProvider) ? config.defaultModel : undefined;
 
-  const [name, setName] = useState(pendingHire?.name ?? 'Jim');
+  const [name, setName] = useState(pendingHire?.name ?? 'Builder');
   const [character, setCharacter] = useState<OfficeCharacterName>(knownCharacter(pendingHire?.character));
   const [accent, setAccent] = useState<AccentColorName>(knownAccent(pendingHire?.accent));
   const [cwd, setCwd] = useState<string>(config.registeredRepos[0] ?? '');

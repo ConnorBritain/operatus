@@ -1,11 +1,28 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { AgentProvider } from '../shared/agentProvider';
 import type { HireManifest } from '../shared/hire';
+import type { BranchProfile } from '../shared/branchIdentity';
 export type { HireManifest } from '../shared/hire';
 import type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 export type { IntegrationRecord, IntegrationTemplate } from '../shared/integrations';
 import type { UpdateStatus } from '../shared/updateState';
 export type { UpdateStatus } from '../shared/updateState';
+import type {
+  DepotSkill,
+  GauntletRun,
+  GauntletRunSnapshot,
+  RoleSkillAssignment,
+  SkillDepotSource,
+  StartGauntletInput
+} from '../shared/gauntlet';
+export type {
+  DepotSkill,
+  GauntletRun,
+  GauntletRunSnapshot,
+  RoleSkillAssignment,
+  SkillDepotSource,
+  StartGauntletInput
+} from '../shared/gauntlet';
 import type {
   ContextRule, ContextTriggerConfig, OrgTriggerConfig, TriggerHistoryEntry, WebhookTrigger
 } from '../shared/triggers';
@@ -44,7 +61,7 @@ export interface HiveAgentMeta {
   capabilities?: string[];
   cwd: string;
   isGod?: boolean;
-  /** Michael's prep assistant — send-only; enriches prompts and forwards them. */
+  /** Conductor's prep assistant — send-only; enriches prompts and forwards them. */
   isAssistant?: boolean;
 }
 
@@ -195,6 +212,8 @@ export interface SpawnPtyOptions {
   /** Which CLI to spawn; usually inferred from `command` in the main process. */
   provider?: AgentProvider;
   args?: string[];
+  /** Main-process-only launch metadata may add scoped environment variables. */
+  env?: Record<string, string>;
   cols?: number;
   rows?: number;
   /** When present, the agent is provisioned in the hive at spawn. */
@@ -258,7 +277,7 @@ export interface HarnessConfig {
   autoMode: boolean;
   defaultCommand: string;
   defaultModel?: string;
-  /** Which provider+model powers the GOD orchestrator ("Michael"). Default
+  /** Which provider+model powers the GOD orchestrator ("Conductor"). Default
    *  'claude' / 'claude-opus-4-8'. Mirrors src/main/config.ts. */
   godProvider?: AgentProvider;
   godModel?: string;
@@ -274,9 +293,9 @@ export interface HarnessConfig {
   /** Opt-in strong keep-alive (prevent-display-sleep). Mirrors main + renderer
    *  HarnessConfig so updateConfig({ strongKeepalive }) is typed across the bridge. */
   strongKeepalive?: boolean;
-  /** Auto-update from GitHub releases (default ON; Settings → General). */
+  /** Auto-update from Atelier-owned GitHub releases (default OFF; Settings → General). */
   autoUpdate?: boolean;
-  /** Anonymous product analytics (default ON, opt-out; see TELEMETRY.md).
+  /** Anonymous product analytics (default OFF, explicit opt-in; see TELEMETRY.md).
    *  Mirrors main + renderer HarnessConfig. */
   telemetryEnabled?: boolean;
   slackEnabled?: boolean;
@@ -293,12 +312,12 @@ export interface HarnessConfig {
   freeflowEnabled?: boolean;
   groqApiKey?: string;
   freeflowModel?: string;
-  /** Realtime Michael voice loop — true ONLY while a session holds the mic
+  /** Realtime Conductor voice loop — true ONLY while a session holds the mic
    *  (renderer session sets it at start()/stop()); the main mic permission gate
    *  reads it. Default off. */
   realtimeVoiceEnabled?: boolean;
   /** Realtime voice idle auto-disconnect (ms); default 180000 (3 min), 0 = never.
-   *  Tuned in Settings → Realtime Michael; the cost cap stays the runaway guard. */
+   *  Tuned in Settings → Realtime Conductor; the cost cap stays the runaway guard. */
   realtimeIdleDisconnectMs?: number;
   costCapUsd?: number;
   costCapTokens?: number;
@@ -314,6 +333,8 @@ export interface HarnessConfig {
   tvShowOffices?: boolean;
   /** Active office map/cast theme (honored only when tvShowOffices is on). */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
+  /** Visual branch identity keyed by harness-home path. */
+  branchProfiles?: Record<string, BranchProfile>;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn. API KEYS are NOT stored here —
    *  they live write-only in the secret broker. */
@@ -699,12 +720,12 @@ const api = {
   hiveInbox: (id: string): Promise<HiveMessage[]> => ipcRenderer.invoke('hive:inbox', id),
   /** Voice read-layer: recent message CONTENT (inbox/outbox bodies), REDACTED in
    *  main. Pass { id } for one message, { agentId } to scope to one mailbox, or
-   *  {} for the whole floor. Backs Realtime Michael's get_messages. The renderer
+   *  {} for the whole floor. Backs Realtime Conductor's get_messages. The renderer
    *  never sees a raw body or a secret — stripping happens main-side. */
   hiveMessages: (opts?: { agentId?: string; id?: string; limit?: number; includeArchived?: boolean }): Promise<VoiceMessage[]> =>
     ipcRenderer.invoke('hive:messages', opts ?? {}),
   /** Consolidated per-agent directory (registry + telemetry + context), incl.
-   *  archived agents. Backs Realtime Michael's get_agent_detail / list_agents. */
+   *  archived agents. Backs Realtime Conductor's get_agent_detail / list_agents. */
   hiveAgentDirectory: (): Promise<AgentDirectory> => ipcRenderer.invoke('hive:agentDirectory'),
 
   // ─── Ephemeral workers (P4 — Slack-triggered isolated workers) ───────────
@@ -764,6 +785,24 @@ const api = {
   /** Substring search over prompt text, most-recent-first. */
   historySearch: (query: string, limit?: number): Promise<CommandHistoryEntry[]> =>
     ipcRenderer.invoke('history:search', query, limit),
+
+  // ─── Atelier Gauntlet Runs (SQLite authority; transport-neutral snapshots) ─
+  gauntletList: (): Promise<GauntletRun[]> => ipcRenderer.invoke('gauntlet:list'),
+  gauntletGet: (runId: string): Promise<GauntletRunSnapshot> => ipcRenderer.invoke('gauntlet:get', runId),
+  gauntletStart: (input: StartGauntletInput & { assignments?: RoleSkillAssignment[] }): Promise<GauntletRunSnapshot> =>
+    ipcRenderer.invoke('gauntlet:start', input),
+  gauntletCancel: (runId: string, reason?: string): Promise<GauntletRunSnapshot> =>
+    ipcRenderer.invoke('gauntlet:cancel', runId, reason),
+  onGauntletChanged: (cb: (snapshot: GauntletRunSnapshot) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, snapshot: GauntletRunSnapshot) => cb(snapshot);
+    ipcRenderer.on('gauntlet:changed', listener);
+    return () => ipcRenderer.removeListener('gauntlet:changed', listener);
+  },
+  skillSources: (): Promise<SkillDepotSource[]> => ipcRenderer.invoke('skills:sources'),
+  skillSaveSources: (sources: SkillDepotSource[]): Promise<SkillDepotSource[]> =>
+    ipcRenderer.invoke('skills:saveSources', sources),
+  skillSync: (sourceId: string): Promise<DepotSkill[]> => ipcRenderer.invoke('skills:sync', sourceId),
+  skillCatalog: (): Promise<DepotSkill[]> => ipcRenderer.invoke('skills:catalog'),
   hiveSend: (msg: Partial<HiveMessage>, from?: string): Promise<{ ok: boolean; error?: string; message?: HiveMessage }> =>
     ipcRenderer.invoke('hive:send', msg, from),
 
@@ -825,7 +864,7 @@ const api = {
   },
 
   // ─── Shareable hires (deep link / file import) ────────────────────────────
-  /** Fired when a validated hire manifest arrives via the munderdifflin://
+  /** Fired when a validated hire manifest arrives via the atelier://
    *  deep link. The renderer opens the Add-Agent modal pre-filled — import
    *  never spawns anything by itself. */
   onHireImport: (cb: (manifest: HireManifest) => void): (() => void) => {
@@ -1022,7 +1061,7 @@ const api = {
   hiveSetArchived: (id: string, archived: boolean): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('hive:setArchived', id, archived),
 
-  // ─── Slack integration (Slack message → Michael's queue) ─────────────────────
+  // ─── Slack integration (Slack message → Conductor's queue) ─────────────────────
   /** Register a listener for inbound Slack messages; returns an unsubscribe fn.
    *  The message carries the thread coordinates needed to reply in-thread. */
   onSlackMessage: (cb: (msg: { text: string; channel: string; ts: string; thread_ts: string; autonomyPreamble?: string; files?: { path: string; name: string; mimetype: string }[] }) => void): (() => void) => {
@@ -1181,7 +1220,7 @@ const api = {
     ipcRenderer.invoke('providerKey:has', backend),
   providerKeyClear: (backend: string): Promise<{ ok: boolean; error?: string }> =>
     ipcRenderer.invoke('providerKey:clear', backend),
-  // Realtime Michael (voice orchestrator) — MAIN mints a short-lived EPHEMERAL token
+  // Realtime Conductor (voice orchestrator) — MAIN mints a short-lived EPHEMERAL token
   // from the BYOK OpenAI key; the real key NEVER crosses IPC. `realtimeHasOpenAiKey`
   // is a presence boolean only (gates the voice toggle, like providerKeyHas).
   realtimeHasOpenAiKey: (): Promise<boolean> =>
@@ -1206,7 +1245,7 @@ const api = {
   realtimeActionCancel: (): Promise<{ ok: boolean; spoken: string; needsConfirm?: boolean }> =>
     ipcRenderer.invoke('realtime:action:cancel'),
   // rt-12 completion seam — a voice-dispatched task finished. `summary` is the
-  // human-speakable line Michael relays; the rest is context for a toast/log.
+  // human-speakable line Conductor relays; the rest is context for a toast/log.
   onRealtimeCompletion: (
     cb: (evt: { correlationId: string; kind: string; targetAgentId: string; taskId?: string; summary: string; completedAt: number; objective?: string }) => void
   ): (() => void) => {

@@ -1,11 +1,10 @@
-// Procedural portraits for The Office cast.
+// Procedural portraits for Atelier's neutral operations-floor cast.
 //
-// These are fully custom-drawn busts (NOT recolored LimeZu sprites): each
+// These are fully custom-drawn neutral role busts: each
 // character is an explicit recipe layering skin → clothing → face → facial hair
 // → hairstyle → glasses on an 18×28 canvas. This gives real control over each
-// person's hairstyle shape, garment cut/color, and facial hair so they read as
-// the specific show character. The in-scene walking sprites still use the LimeZu
-// recolor in cast.ts; this module only powers the static portraits in the UI.
+// distinct operators without relying on external character sheets, celebrity
+// likenesses, or restricted source art. The same recipes power cards and walkers.
 
 import type { OfficeCharacterName } from './cast';
 
@@ -491,21 +490,21 @@ function drawHeavyFace(buf: Buf, skin: string): void {
 }
 
 const RECIPES: Record<OfficeCharacterName, Recipe> = {
-  michael:  { skin: 'light', hairc: [58, 42, 28],   hair: 'styleShort',  hairargs: { part: 'L' }, cloth: 'suit', c1: [58, 63, 74], tie: [170, 58, 58], brow: 'flat', mouth: 'smile' },
-  jim:      { skin: 'light', hairc: [92, 60, 34],   hair: 'styleFloppy', cloth: 'dressshirt', c1: [172, 196, 224], tie: [120, 130, 150], brow: 'flat', mouth: 'smile' },
-  pam:      { skin: 'light', hairc: [120, 76, 42],  hair: 'styleFrame',  hairargs: { length: 18, vol: 2 }, cloth: 'cardigan', c1: [236, 174, 192], c2: [244, 242, 238], brow: 'soft', mouth: 'smile', blush: true, lashes: true },
-  dwight:   { skin: 'light', hairc: [64, 48, 28],   hair: 'styleShort',  hairargs: { part: 'L', recede: 1 }, cloth: 'dressshirt', c1: [184, 155, 62], tie: [120, 82, 46], glasses: true, brow: 'angry', mouth: 'neutral' },
-  kevin:    { skin: 'light', hairc: [58, 44, 30],   hair: 'styleBald',   cloth: 'polo', c1: [110, 140, 180], c2: [90, 120, 160], brow: 'flat', mouth: 'neutral', heavy: true },
-  angela:   { skin: 'light', hairc: [186, 154, 90], hair: 'styleBun',    cloth: 'cardigan', c1: [150, 146, 170], c2: [235, 233, 226], brow: 'angry', mouth: 'frown', lashes: true },
-  oscar:    { skin: 'tan',   hairc: [28, 22, 18],   hair: 'styleShort',  hairargs: { part: 'L' }, cloth: 'sweater', c1: [122, 60, 74], brow: 'flat', mouth: 'smile' },
-  stanley:  { skin: 'dark',  hairc: [60, 54, 48],   hair: 'styleRecede', cloth: 'dressshirt', c1: [150, 120, 86], tie: [120, 78, 52], glasses: true, facial: 'mustache', brow: 'flat', mouth: 'neutral', heavy: true },
-  phyllis:  { skin: 'light', hairc: [196, 162, 110], hair: 'styleCurly', cloth: 'blouse', c1: [202, 160, 192], glasses: true, brow: 'soft', mouth: 'smile', lashes: true, heavy: true },
-  andy:     { skin: 'light', hairc: [74, 51, 32],   hair: 'styleShort',  hairargs: { part: 'R' }, cloth: 'polo', c1: [176, 65, 58], c2: [150, 50, 46], brow: 'raised', mouth: 'smile' },
-  kelly:    { skin: 'tan',   hairc: [24, 18, 22],   hair: 'styleFrame',  hairargs: { length: 20, vol: 1 }, cloth: 'blouse', c1: [212, 90, 158], brow: 'soft', mouth: 'smile', blush: true, lashes: true },
-  ryan:     { skin: 'light', hairc: [42, 32, 24],   hair: 'styleSpiky',  cloth: 'suit', c1: [58, 58, 68], tie: [40, 40, 50], brow: 'flat', mouth: 'neutral' },
-  toby:     { skin: 'light', hairc: [106, 90, 66],  hair: 'styleShort',  hairargs: { part: 'L', recede: 1 }, cloth: 'dressshirt', c1: [150, 150, 120], facial: 'mustacheSm', brow: 'soft', mouth: 'frown' },
-  creed:    { skin: 'light', hairc: [170, 166, 156], hair: 'styleBald',   cloth: 'dressshirt', c1: [126, 130, 96], facial: 'stubble', brow: 'flat', mouth: 'neutral' },
-  meredith: { skin: 'light', hairc: [154, 82, 46],  hair: 'styleMessy',  hairargs: { length: 15 }, cloth: 'blouse', c1: [176, 86, 74], brow: 'raised', mouth: 'smile', lashes: true },
+  michael:  { skin: 'brown', hairc: [34, 29, 38],   hair: 'styleShort',  hairargs: { part: 'R' }, cloth: 'polo', c1: [74, 88, 132], c2: [111, 198, 181], glasses: true, brow: 'flat', mouth: 'smile' },
+  jim:      { skin: 'tan',   hairc: [42, 32, 30],   hair: 'styleSpiky',  cloth: 'polo', c1: [60, 111, 153], c2: [124, 184, 212], brow: 'raised', mouth: 'smile' },
+  pam:      { skin: 'dark',  hairc: [22, 20, 28],   hair: 'styleBun',    cloth: 'polo', c1: [76, 132, 112], c2: [142, 211, 181], brow: 'soft', mouth: 'smile', lashes: true },
+  dwight:   { skin: 'light', hairc: [116, 70, 42],  hair: 'styleMessy', hairargs: { length: 8 }, cloth: 'polo', c1: [166, 126, 56], c2: [230, 188, 91], glasses: true, brow: 'flat', mouth: 'neutral' },
+  kevin:    { skin: 'tan',   hairc: [28, 24, 30],   hair: 'styleCurly', cloth: 'polo', c1: [68, 103, 156], c2: [112, 154, 210], brow: 'flat', mouth: 'smile', heavy: true },
+  angela:   { skin: 'brown', hairc: [78, 44, 30],   hair: 'styleFrame', hairargs: { length: 14, vol: 1 }, cloth: 'polo', c1: [111, 96, 153], c2: [173, 151, 214], brow: 'soft', mouth: 'neutral', lashes: true },
+  oscar:    { skin: 'dark',  hairc: [18, 18, 24],   hair: 'styleFloppy', cloth: 'polo', c1: [119, 68, 107], c2: [186, 114, 167], brow: 'flat', mouth: 'smile' },
+  stanley:  { skin: 'light', hairc: [152, 148, 146],hair: 'styleBald', cloth: 'polo', c1: [137, 91, 76], c2: [205, 132, 105], glasses: true, brow: 'soft', mouth: 'neutral', heavy: true },
+  phyllis:  { skin: 'tan',   hairc: [42, 34, 48],   hair: 'styleCurly', cloth: 'polo', c1: [143, 100, 166], c2: [204, 151, 224], glasses: true, brow: 'soft', mouth: 'smile', lashes: true },
+  andy:     { skin: 'brown', hairc: [25, 23, 30],   hair: 'styleShort', hairargs: { part: 'L' }, cloth: 'polo', c1: [78, 137, 91], c2: [130, 204, 143], brow: 'raised', mouth: 'smile' },
+  kelly:    { skin: 'light', hairc: [56, 43, 68],   hair: 'styleFrame', hairargs: { length: 16, vol: 1 }, cloth: 'polo', c1: [169, 73, 133], c2: [230, 124, 185], brow: 'soft', mouth: 'smile', lashes: true },
+  ryan:     { skin: 'dark',  hairc: [16, 16, 21],   hair: 'styleSpiky', cloth: 'polo', c1: [66, 72, 88], c2: [116, 128, 153], brow: 'flat', mouth: 'neutral' },
+  toby:     { skin: 'tan',   hairc: [88, 60, 42],   hair: 'styleRecede', cloth: 'polo', c1: [139, 126, 78], c2: [197, 180, 111], brow: 'soft', mouth: 'smile' },
+  creed:    { skin: 'brown', hairc: [134, 132, 142],hair: 'styleBald', cloth: 'polo', c1: [94, 117, 75], c2: [147, 177, 117], glasses: true, brow: 'flat', mouth: 'neutral' },
+  meredith: { skin: 'light', hairc: [36, 29, 48],   hair: 'styleMessy', hairargs: { length: 12 }, cloth: 'polo', c1: [159, 74, 72], c2: [218, 120, 116], brow: 'raised', mouth: 'smile', lashes: true },
 };
 
 /** The face/hair group (head → face → facial hair → hair → glasses), no clothing. */

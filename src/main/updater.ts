@@ -20,7 +20,7 @@ import { reduceStatus, clampPercent, isNewer, type UpdateStatus } from '../share
  * `releases/latest` poll — semver-compare against the running version and show a
  * notify-only state linking the release page.
  *
- * Everything is gated on the `autoUpdate` HarnessConfig flag (default ON,
+ * Everything is gated on the `autoUpdate` HarnessConfig flag (default OFF,
  * Settings → General) and on `app.isPackaged` — dev runs never poll.
  *
  * ─── v0.3.7: why native updating never actually ran ──────────────────────────
@@ -43,7 +43,7 @@ import { reduceStatus, clampPercent, isNewer, type UpdateStatus } from '../share
  *      downgrade is per-check, not a permanent latch.
  */
 
-const REPO = 'chaitanyagiri/munder-difflin';
+const REPO = 'ConnorBritain/atelier';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6h
 const FALLBACK_CACHE_MS = 60 * 60 * 1000;     // 1h between releases/latest polls
 
@@ -74,9 +74,9 @@ function emit(status: UpdateStatus): void {
 
 function autoUpdateEnabled(): boolean {
   try {
-    return readConfig().autoUpdate !== false; // default ON
+    return readConfig().autoUpdate === true; // Atelier-owned releases are opt-in until established
   } catch {
-    return true;
+    return false;
   }
 }
 
@@ -126,7 +126,7 @@ function fallbackCheck(reason: string | undefined, force = false): void {
         hostname: 'api.github.com',
         path: `/repos/${REPO}/releases/latest`,
         method: 'GET',
-        headers: { 'User-Agent': 'munder-difflin-updater', Accept: 'application/vnd.github+json' },
+        headers: { 'User-Agent': 'atelier-updater', Accept: 'application/vnd.github+json' },
         timeout: 10_000
       },
       (res) => {

@@ -1,23 +1,10 @@
-# Asset attribution
+# Atelier visual assets
 
-The office tileset/map and base character walk sheets in this directory are vendored from
-[`shahar061/the-office`](https://github.com/shahar061/the-office) (project code: ISC).
+The active Atelier operations floor and map are original clean-room assets:
 
-## Pixel art — LimeZu (IMPORTANT: non-commercial license)
+- `atelier/atelier-operations-floor-source.png` — generated from the Atelier art brief recorded in `docs/assets/PROVENANCE.md`.
+- `atelier/atelier-operations-floor.png` — runtime-sized derivative of that source.
+- `maps/atelier-operations.tmj` — original Atelier collision, spawn-point, and zone map.
+- Role portraits and walk frames are drawn at runtime by `scene/office/portraitArt.ts`.
 
-The tilesets (`tilesets/*.png`) and the base character sheets used as recolor sources
-(`characters/{Adam,Alex,Amelia,Bob}_walk.png`) are LimeZu pixel-art assets, distributed under
-the **LimeZu FREE VERSION license** (see `tilesets/LIMEZUASSETS-LICENSE.txt`):
-
-- ✅ May be used **and edited** (we recolor them into the Office cast) — **in non-commercial projects only**.
-- ❌ May **not** be used or edited in commercial projects, and may not be resold.
-
-This project (Munder Difflin) is a personal, non-commercial project, which is compatible
-with that license. **If this project is ever commercialized, these assets must be replaced or a
-paid LimeZu license obtained.** The recolored Office-cast sprites are derived edits of these base
-sheets and inherit the same restriction.
-
-## Tiled map
-
-`maps/office.tmj` / `maps/lobby.tmj` are Tiled JSON maps from the same repo, built on the LimeZu
-tilesets above.
+No LimeZu art, Office character sheets, Office maps, or recolors are included in the distributable source. Historic upstream versions remain available through Git history and are covered by their original terms; they are not part of an Atelier build.

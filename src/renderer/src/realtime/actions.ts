@@ -1,7 +1,7 @@
 /**
- * Realtime Michael — voice ACTION tools (card rt-5, Phase 2).
+ * Realtime Conductor — voice ACTION tools (card rt-5, Phase 2).
  *
- * The write-side function-tools that turn voice-Michael into an orchestrator: ping
+ * The write-side function-tools that turn voice-Conductor into an orchestrator: ping
  * / dispatch / steer / task CRUD / spawn-hire / kill / pause / halt / edit-schedule.
  * These are THIN — every tool just forwards a {verb, ...args} to the main process
  * (src/main/realtimeActions.ts), which owns the entire safety spine: the soft-vs-
@@ -52,7 +52,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'ping_agent',
       description:
-        'Send a short message to one agent (a nudge or note). Soft action — runs immediately, no confirm. Use for "tell Oscar X" or "check in with Jim".',
+        'Send a short message to one agent (a nudge or note). Soft action — runs immediately, no confirm. Use for "tell the critic X" or "check in with Builder".',
       parameters: {
         type: 'object',
         properties: {
@@ -67,7 +67,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'dispatch_agent',
       description:
-        'Give an agent a task as a structured 4-part work order (objective, context, constraints, done-when) delivered to their inbox. Soft action — runs immediately. Use for "have Jim build X" or "ask Oscar to investigate Y".',
+        'Give an agent a task as a structured 4-part work order (objective, context, constraints, done-when) delivered to their inbox. Soft action — runs immediately. Use for "have Builder make X" or "ask the critic to investigate Y".',
       parameters: {
         type: 'object',
         properties: {
@@ -85,7 +85,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'steer_agent',
       description:
-        'Inject live guidance into a running agent to redirect it without stopping it. Soft action — runs immediately. This is the priority verb: "tell Jim to focus on the bug first", "steer Oscar away from that approach".',
+        'Inject live guidance into a running agent to redirect it without stopping it. Soft action — runs immediately. This is the priority verb: "tell Builder to focus on the bug first" or "steer the critic toward the failure path".',
       parameters: {
         type: 'object',
         properties: {
@@ -200,7 +200,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'kill_agent',
       description:
-        'Terminate a running agent (closes its terminal, archives it). DESTRUCTIVE — does NOT run immediately; returns an echo-back and asks for verbal confirmation. After the user confirms, call confirm_action. Killing the god orchestrator or all agents at once is forbidden.',
+        'Terminate a running agent (closes its terminal, archives it). DESTRUCTIVE — does NOT run immediately; returns an echo-back and asks for verbal confirmation. After the user confirms, call confirm_action. Terminating Conductor or all agents at once is forbidden.',
       parameters: {
         type: 'object',
         properties: { agentId: { type: 'string', description: 'Agent name or id to kill.' } },
@@ -280,7 +280,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'gate_tool',
       description:
-        'Block (gate) or unblock one named tool for one agent — e.g. gate Bash for Jim. Soft action — runs immediately.',
+        'Block (gate) or unblock one named tool for one agent — e.g. gate Bash for Builder. Soft action — runs immediately.',
       parameters: {
         type: 'object',
         properties: {
@@ -319,7 +319,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
     tool({
       name: 'clear_agent_context',
       description:
-        "Queue a context clear (/clear) for one agent — wipes its working memory of the current conversation; delivery waits until the agent is idle. DESTRUCTIVE — returns an echo-back and asks for verbal confirmation ('clear' or 'confirm'). After the user confirms, call confirm_action. Allowed on the god orchestrator too (it can resume its session).",
+        "Queue a context clear (/clear) for one agent — wipes its working memory of the current conversation; delivery waits until the agent is idle. DESTRUCTIVE — returns an echo-back and asks for verbal confirmation ('clear' or 'confirm'). After the user confirms, call confirm_action. Allowed on Conductor too (it can resume its session).",
       parameters: {
         type: 'object',
         properties: { agentId: { type: 'string', description: 'Agent name or id whose context to clear.' } },
@@ -350,7 +350,7 @@ export function realtimeActionTools(): ReturnType<typeof tool>[] {
           label: { type: 'string', description: 'Short name for the schedule.' },
           prompt: { type: 'string', description: 'The message the agent receives each time it fires.' },
           intervalMinutes: { type: 'number', description: 'How often it fires, in minutes (min 5). Default 60.' },
-          to: { type: 'string', description: 'Target agent name or id. Default: the god orchestrator.' }
+          to: { type: 'string', description: 'Target agent name or id. Default: Conductor.' }
         },
         required: ['label', 'prompt'],
         additionalProperties: false

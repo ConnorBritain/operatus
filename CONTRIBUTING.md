@@ -1,4 +1,4 @@
-# Contributing to Munder Difflin
+# Contributing to Atelier
 
 Thanks for your interest! This is an early prototype, so there's a lot of surface
 area and plenty of room to help. This guide covers setup, the gotchas, and the
@@ -13,8 +13,9 @@ participating, you agree to uphold it.
 
 ### Prerequisites
 
-- **macOS** — the app is macOS-first. Windows/Linux are untested but PRs that
-  improve cross-platform support are welcome.
+- **macOS or Windows** — macOS is the currently verified development target;
+  Windows support is part of the product architecture and still needs release
+  packaging coverage. Linux remains a welcome community target.
 - **Node.js 18+** and npm.
 - A **C/C++ toolchain** to build `node-pty`'s native addon. On macOS:
   ```bash
@@ -26,8 +27,8 @@ participating, you agree to uphold it.
 ### Install & run
 
 ```bash
-git clone <your-fork-url> munder-difflin
-cd munder-difflin
+git clone --recurse-submodules <your-fork-url> atelier
+cd atelier
 npm install        # postinstall rebuilds node-pty against Electron's ABI
 npm run dev        # live-reloading Electron build
 ```
@@ -41,14 +42,16 @@ npm run dev        # live-reloading Electron build
 
 ## Before you open a PR
 
-1. **Keep the type-checker green:** `npm run typecheck` (runs both the node and
-   web TS projects). This is the de-facto CI gate — there is no test suite yet.
-2. **Confirm a production build works:** `npm run build`.
-3. **Match the aesthetic.** Any new UI **must** derive from the design tokens in
+1. **Keep the type-checker green:** `npm run typecheck`.
+2. **Run protocol and retained-runtime tests:** `npm run test:gauntlet` and
+   `npm run test:focused`.
+3. **Confirm a production build works:** `npm run build`, then run
+   `npm run check:atelier-assets`.
+4. **Match the aesthetic.** Any new UI **must** derive from the design tokens in
    [`DESIGN.md`](./DESIGN.md) / `src/renderer/src/design/tokens.ts` — no ad-hoc
    colors, spacing, or fonts. `tokens.ts` and `tokens.css` are mirrored; if you
    change one, change both.
-4. **For anything visual, include a screenshot or short clip** in the PR.
+5. **For anything visual, include a screenshot or short clip** in the PR.
 
 ## Project layout
 
@@ -57,18 +60,17 @@ npm run dev        # live-reloading Electron build
 | `src/main/` | Electron main process — PTYs (`pty.ts`), fs/git bridges, the hive (`hive.ts`, `hooks.ts`, `memory.ts`), config. |
 | `src/preload/` | Context-bridge IPC surface. |
 | `src/renderer/` | React UI, Pixi.js office scene (`scene/office/`), components, design system, stores. |
-| `tools/mapgen/` | Python helpers for building/rendering the Tiled office map. |
+| `src/main/gauntlet/` | deterministic run state, storage, strict worktrees, providers, primitives, and skills |
 
 See the [Architecture](./README.md#architecture) section of the README for the
 data-flow overview.
 
 ## Good first areas
 
-- **Wiring real Claude Code hook events** — avatar behavior is currently driven
-  by a mock event loop (`src/renderer/src/store/mockEvents.ts`). Replacing it
-  with real tool events is the headline next milestone.
-- The add-agent flow and config drawer.
-- Cross-platform smoke-testing (Linux/Windows).
+- Windows packaging and continuous smoke coverage.
+- The Tailscale-first remote gateway and installable web client described in
+  [`docs/architecture/remote-portal.md`](./docs/architecture/remote-portal.md).
+- More original floor packs and accessible branch themes.
 
 ## Commit & PR conventions
 
@@ -78,11 +80,11 @@ data-flow overview.
 
 ## A note on assets
 
-The bundled pixel art is under the **LimeZu FREE VERSION license
-(non-commercial only)** — see [`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md).
-If you contribute new art, it must be either your own work or compatibly
-licensed, and you must add it to `ATTRIBUTION.md`. Don't add commercial-only or
-unlicensed assets.
+The distributable floor and role art must be original or compatibly licensed.
+If you contribute new art, record its source and terms in
+[`ATTRIBUTION.md`](./src/renderer/src/assets/ATTRIBUTION.md) and
+[`docs/assets/PROVENANCE.md`](./docs/assets/PROVENANCE.md). Do not restore the
+restricted upstream tiles, maps, base characters, or recolors.
 
 ## Questions
 

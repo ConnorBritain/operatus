@@ -12,6 +12,7 @@ import type {
   OrgTriggerConfig,
   WebhookTrigger
 } from '@shared/triggers';
+import type { BranchProfile } from '@shared/branchIdentity';
 
 export {
   AGENT_PROVIDER_PRESETS,
@@ -65,7 +66,7 @@ export interface HarnessConfig {
   defaultCommand: string;
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
   defaultModel?: string;
-  /** Which provider+model powers the GOD orchestrator ("Michael"). Default
+  /** Which provider+model powers the GOD orchestrator ("Conductor"). Default
    *  'claude' / 'claude-opus-4-8'. Mirrors src/main/config.ts. */
   godProvider?: AgentProvider;
   godModel?: string;
@@ -101,7 +102,7 @@ export interface HarnessConfig {
   groqApiKey?: string;
   freeflowModel?: string;
   /** Realtime voice idle auto-disconnect (ms); default 180000 (3 min), 0 = never.
-   *  Tuned in Settings → Realtime Michael; the cost cap stays the runaway guard. */
+   *  Tuned in Settings → Realtime Conductor; the cost cap stays the runaway guard. */
   realtimeIdleDisconnectMs?: number;
   costCapUsd?: number;
   /** Hard total-token ceiling across active agents (the user-facing budget). */
@@ -118,6 +119,8 @@ export interface HarnessConfig {
   tvShowOffices?: boolean;
   /** Active office map/cast theme (honored only when tvShowOffices is on). */
   officeTheme?: 'office' | 'friends' | 'brooklyn99' | 'siliconvalley' | 'got' | 'hogwarts';
+  /** Visual branch identity keyed by harness-home path. */
+  branchProfiles?: Record<string, BranchProfile>;
   /** Per-CLI-provider local/self-hosted base URL (Ollama/LM Studio/vLLM, …) for the
    *  OpenCode/Crush/pi/qwen engines; applied at spawn. API KEYS are NOT stored here —
    *  they live write-only in the secret broker. */
@@ -146,7 +149,7 @@ export interface HarnessConfig {
   triggersMigratedV1?: boolean;
 }
 
-/** The Sonnet model with the 1M-token context window — used for Michael's prep
+/** The Sonnet model with the 1M-token context window — used for Conductor's prep
  *  assistant (cheap, large-context context gathering). Mirrors ASSISTANT_MODEL
  *  in src/main/assistant.ts; keep the two in sync. */
 export const ASSISTANT_MODEL = 'claude-sonnet-4-6[1m]';
