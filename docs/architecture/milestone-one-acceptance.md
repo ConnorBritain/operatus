@@ -17,8 +17,10 @@ future Operatus surface is already delivered.
 | Agent Primitives | clean pinned submodule, validated registry resolution, local override, and per-launch primitive receipts |
 | Skill Depot | manually synchronized pinned sources, Matt Pocock baseline, opt-in content, collision handling, digest locks, read-only materialization, and no install-script execution |
 | Observable desktop | Runs surface, exact artifacts/checks/findings/acknowledgments/repairs, role terminals, and floor projection |
-| Product and art independence | Operatus application profile, easel identity, original operations-floor assets, provenance inventory, and forbidden-name/hash guard |
-| Branch identity | twelve accessible built-in themes with a per-workspace name and persistent visual marker |
+| Product and art independence | Operatus application profile, friendly gem-operator-at-a-desk identity, original operations-floor assets, provenance inventory, and forbidden-name/hash guard |
+| Hosted identity and preferences | Supabase email/Google/GitHub authentication, self-scoped profile and presentation preferences, RLS, and twelve Branch themes |
+| Branch identity | one durable machine identity per Branch, one active node at a time, stable naming/favorites/theme, and clear offline/unpaired state |
+| Remote control plane | responsive web/PWA portal, one-time pairing, encrypted node token storage, outbound-only sync, redacted run projections, expected-version command validation, and auditable message/cancel operations |
 | Verification | Gauntlet unit/integration suite, retained-runtime focused suite, node/web typechecks, production build, asset guard, macOS package, and packaged launch smoke |
 
 The protocol suite covers legal and stale transitions, exact artifact ancestry,
@@ -31,14 +33,15 @@ identity. CI repeats the source-level verification and unsigned macOS build.
 
 - Signing, notarization, release publishing, and merging candidate run branches.
 - A Roadmap/GitHub authority backend and hybrid local/remote execution.
-- The remote daemon, browser/PWA client, pairing, push delivery, and the
-  Tailscale Serve setup flow. Their trust and transport seams are specified in
-  `remote-portal.md`; milestone one keeps all run authority local.
+- Push delivery, native mobile wrappers, direct Tailscale Serve setup, and
+  cross-Branch conversation. The hosted portal already works over HTTPS from a
+  tailnet without exposing an inbound daemon port; the direct-tailnet profile
+  remains a later transport.
 - Windows installer acceptance and continuous Windows smoke coverage. Core
   socket, path, check-shell, and process-tree seams are cross-platform, but the
   release artifact has not yet been certified on Windows hardware.
-- Signed skin/module manifests, avatar construction, commercial entitlements,
-  and hosted multi-user identity.
+- Signed skin/module manifests, layered avatar construction, and deeper Firm
+  Intelligence for shared skills, policy, memory, and delegation.
 
 These deferred items may add surfaces or transports, but must not weaken the
 frozen contract, exact artifact identity, role authority, or local audit trail.
