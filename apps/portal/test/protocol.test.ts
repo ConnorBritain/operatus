@@ -6,6 +6,7 @@ import {
   runProjectionSchema,
 } from "@/lib/protocol";
 import { newPairingCode, normalizePairingCode } from "@/lib/node-auth";
+import { describeClientDevice } from "@/lib/client-device";
 
 describe("remote control protocol", () => {
   it("normalizes human pairing codes without accepting hidden characters", () => {
@@ -54,5 +55,20 @@ describe("remote control protocol", () => {
       snapshot: {},
     }));
     expect(nodeSyncSchema.safeParse({ status: "online", repositories: [], runs }).success).toBe(false);
+  });
+
+  it("assigns stable, low-detail labels to authenticated browser devices", () => {
+    expect(describeClientDevice(new Headers({ "user-agent": "Mozilla/5.0 (Linux; Android 16)" }))).toEqual({
+      label: "Android phone or tablet",
+      platform: "android",
+    });
+    expect(describeClientDevice(new Headers({ "sec-ch-ua-platform": '"macOS"' }))).toEqual({
+      label: "Mac browser",
+      platform: "macos",
+    });
+    expect(describeClientDevice(new Headers())).toEqual({
+      label: "Web browser",
+      platform: "browser",
+    });
   });
 });

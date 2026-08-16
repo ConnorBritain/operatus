@@ -10,6 +10,7 @@ The portal is identity, discovery, presence, projection, command queue, and audi
 - Git commits remain authoritative for artifact content.
 - A paired node sends an explicitly redacted projection; it never sends repository paths, prompts, source files, credentials, or unrestricted terminal output.
 - A browser can enqueue only named operations. The node checks expiry, local run identity, expected run version, current state, and operation support before acting.
+- Each authenticated browser receives a revocable, HTTP-only client-device identity. Pairing and command audit records bind both the user and the originating browser without treating the device cookie as authority by itself.
 - The current desktop build accepts `message_conductor` and `cancel_run`. Other reserved operations are rejected until their local state semantics exist.
 - No arbitrary shell command, merge, push, frozen-bar edit, role impersonation, or skill installation is exposed.
 
@@ -82,7 +83,7 @@ Every portal release must pass its tests, typecheck, and production build. After
 
 1. `GET /api/health` returns `status: ok` without authentication.
 2. An anonymous Data API request cannot list nodes.
-3. Google/GitHub sign-in returns through `/auth/callback`.
+3. Google/GitHub sign-in returns through `/auth/callback` and registers the browser as a client device.
 4. A new user receives one personal workspace and Main studio branch.
 5. A pairing code enrolls exactly one node.
 6. The node sync contains no local path or private objective.

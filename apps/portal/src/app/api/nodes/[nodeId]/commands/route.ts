@@ -1,11 +1,13 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { attachClientDeviceCookie, ensureClientDevice } from "@/lib/client-device";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { commandRequestSchema } from "@/lib/protocol";
 
 type Context = { params: Promise<{ nodeId: string }> };
 
-export async function POST(request: Request, { params }: Context) {
+export async function POST(request: NextRequest, { params }: Context) {
   const { userId } = await requireUser();
   if (!userId) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
@@ -14,6 +16,8 @@ export async function POST(request: Request, { params }: Context) {
   if (!parsed.success) return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
 
   const admin = createAdminClient();
+  const device = await ensureClientDevice(request, userId, admin);
+  if (!device.ok) return NextResponse.json({ error: device.error }, { status: device.status });
   const { data: node, error: nodeError } = await admin.from("nodes").select("id, workspace_id, revoked_at")
     .eq("id", nodeId).maybeSingle();
   if (nodeError) return NextResponse.json({ error: "CONTROL_PLANE_UNAVAILABLE" }, { status: 503 });
@@ -39,7 +43,7 @@ export async function POST(request: Request, { params }: Context) {
     node_id: nodeId,
     run_projection_id: parsed.data.runProjectionId ?? null,
     issued_by: userId,
-    issued_from_device_id: null,
+    issued_from_device_id: device.deviceId,
     operation: parsed.data.operation,
     payload: parsed.data.payload,
     idempotency_key: parsed.data.idempotencyKey,
@@ -52,9 +56,9 @@ export async function POST(request: Request, { params }: Context) {
 
   await admin.from("audit_events").insert({
     workspace_id: node.workspace_id,
-    actor_kind: "user",
+    actor_kind: "device",
     actor_user_id: userId,
-    actor_device_id: null,
+    actor_device_id: device.deviceId,
     actor_node_id: null,
     action: `command.${parsed.data.operation}.queued`,
     resource_kind: "command",
@@ -62,5 +66,8 @@ export async function POST(request: Request, { params }: Context) {
     metadata: { node_id: nodeId, run_projection_id: parsed.data.runProjectionId ?? null },
   });
 
-  return NextResponse.json({ ...data, expiresAt }, { status: 201 });
+  return attachClientDeviceCookie(
+    NextResponse.json({ ...data, expiresAt }, { status: 201 }),
+    device.deviceId,
+  );
 }

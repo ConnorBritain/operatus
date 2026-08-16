@@ -4,6 +4,7 @@ import { AuthPanel } from "@/app/_components/auth-panel";
 import { PairingPanel } from "@/app/_components/pairing-panel";
 import { NodeControls } from "@/app/_components/node-controls";
 import { LiveUpdater } from "@/app/_components/live-updater";
+import { DeviceRegistrar } from "@/app/_components/device-registrar";
 import { signOut } from "@/app/actions";
 import { requireUser } from "@/lib/auth";
 
@@ -102,6 +103,7 @@ export default async function Home({ searchParams }: PageProps) {
 
   return (
     <div className="portal-shell">
+      <DeviceRegistrar />
       <LiveUpdater />
       <header className="topbar">
         <Link className="brand-lockup compact" href="/">

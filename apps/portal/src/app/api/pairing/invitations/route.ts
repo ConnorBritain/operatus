@@ -1,10 +1,12 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth";
+import { attachClientDeviceCookie, ensureClientDevice } from "@/lib/client-device";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { invitationRequestSchema } from "@/lib/protocol";
 import { newPairingCode, normalizePairingCode, secretHash } from "@/lib/node-auth";
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const { userId } = await requireUser();
   if (!userId) return NextResponse.json({ error: "UNAUTHENTICATED" }, { status: 401 });
 
@@ -12,6 +14,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "INVALID_REQUEST" }, { status: 400 });
 
   const admin = createAdminClient();
+  const device = await ensureClientDevice(request, userId, admin);
+  if (!device.ok) return NextResponse.json({ error: device.error }, { status: device.status });
   const [{ data: membership, error: membershipError }, { data: branch, error: branchError }] = await Promise.all([
     admin.from("workspace_memberships").select("role, status")
       .eq("workspace_id", parsed.data.workspaceId).eq("user_id", userId).maybeSingle(),
@@ -47,9 +51,9 @@ export async function POST(request: Request) {
 
   await admin.from("audit_events").insert({
     workspace_id: parsed.data.workspaceId,
-    actor_kind: "user",
+    actor_kind: "device",
     actor_user_id: userId,
-    actor_device_id: null,
+    actor_device_id: device.deviceId,
     actor_node_id: null,
     action: "pairing.invitation_created",
     resource_kind: "pairing_invitation",
@@ -57,5 +61,8 @@ export async function POST(request: Request) {
     metadata: { branch_id: parsed.data.branchId, expires_at: expiresAt },
   });
 
-  return NextResponse.json({ code, expiresAt }, { status: 201 });
+  return attachClientDeviceCookie(
+    NextResponse.json({ code, expiresAt }, { status: 201 }),
+    device.deviceId,
+  );
 }
