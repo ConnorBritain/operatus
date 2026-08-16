@@ -56,3 +56,17 @@ test("future Supabase objects remain opt-in for every API role", () => {
     );
   }
 });
+
+test("node revocation is atomic and callable only by the service role", () => {
+  const revocation = readMigration("_revoke_remote_access.sql");
+
+  assert.match(revocation, /create or replace function public\.revoke_atelier_node/);
+  assert.match(revocation, /security definer[\s\S]+set search_path = ''/);
+  assert.match(revocation, /membership\.role[\s\S]+membership\.status = 'active'/);
+  assert.match(revocation, /device\.user_id = actor_user_id[\s\S]+device\.revoked_at is null/);
+  assert.match(revocation, /update public\.nodes[\s\S]+status = 'revoked'/);
+  assert.match(revocation, /update public\.commands[\s\S]+status = 'expired'/);
+  assert.match(revocation, /'node\.revoked'/);
+  assert.match(revocation, /revoke all on function public\.revoke_atelier_node[\s\S]+from public, anon, authenticated/);
+  assert.match(revocation, /grant execute on function public\.revoke_atelier_node[\s\S]+to service_role/);
+});

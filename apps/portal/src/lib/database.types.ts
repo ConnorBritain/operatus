@@ -96,6 +96,14 @@ export type Database = {
           run_projection_id: string | null;
         }>;
       };
+      revoke_atelier_node: {
+        Args: {
+          target_node_id: string;
+          actor_user_id: string;
+          actor_device_id: string;
+        };
+        Returns: boolean;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

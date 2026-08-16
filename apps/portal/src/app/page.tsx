@@ -181,7 +181,12 @@ export default async function Home({ searchParams }: PageProps) {
                                 </span>
                               </div>
                             ) : <div className="quiet-state">No shared run is active.</div>}
-                            <NodeControls nodeId={node.id} runId={latestRun?.id} runVersion={latestRun?.run_version} />
+                            <NodeControls
+                              nodeId={node.id}
+                              runId={latestRun?.id}
+                              runVersion={latestRun?.run_version}
+                              canManageAccess={membership?.role === "owner" || membership?.role === "admin"}
+                            />
                           </section>
                         );
                       })}

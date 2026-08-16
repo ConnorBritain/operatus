@@ -3,9 +3,20 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function NodeControls({ nodeId, runId, runVersion }: { nodeId: string; runId?: string; runVersion?: number }) {
+export function NodeControls({
+  nodeId,
+  runId,
+  runVersion,
+  canManageAccess,
+}: {
+  nodeId: string;
+  runId?: string;
+  runVersion?: number;
+  canManageAccess: boolean;
+}) {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState<string | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const router = useRouter();
 
   async function send(operation: "message_conductor" | "cancel_run") {
@@ -31,6 +42,24 @@ export function NodeControls({ nodeId, runId, runVersion }: { nodeId: string; ru
     }
   }
 
+  async function revokeMachine() {
+    if (!confirmRevoke) {
+      setConfirmRevoke(true);
+      setStatus("Select confirm to disconnect this machine.");
+      return;
+    }
+
+    setStatus("Disconnecting…");
+    const response = await fetch(`/api/nodes/${nodeId}`, { method: "DELETE" });
+    const body = await response.json();
+    if (!response.ok) {
+      setStatus(body.error ?? "Machine access could not be revoked.");
+      return;
+    }
+    setStatus("Machine access revoked");
+    router.refresh();
+  }
+
   return (
     <div className="node-controls">
       <div className="message-control">
@@ -40,6 +69,16 @@ export function NodeControls({ nodeId, runId, runVersion }: { nodeId: string; ru
       {runId ? (
         <div className="command-row">
           <button className="text-button danger" onClick={() => send("cancel_run")}>Cancel run</button>
+        </div>
+      ) : null}
+      {canManageAccess ? (
+        <div className="command-row">
+          <button className="text-button danger" onClick={revokeMachine}>
+            {confirmRevoke ? "Confirm disconnect" : "Disconnect machine"}
+          </button>
+          {confirmRevoke ? (
+            <button className="text-button" onClick={() => { setConfirmRevoke(false); setStatus(null); }}>Keep connected</button>
+          ) : null}
         </div>
       ) : null}
       {status ? <span className="command-status" role="status">{status}</span> : null}

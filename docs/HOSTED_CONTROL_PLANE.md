@@ -42,6 +42,7 @@ The initial production baseline consists of:
 - `20260816130021_secure_rls_event_trigger.sql`
 - `20260816135055_lock_down_future_api_objects.sql`
 - `20260816135144_revoke_remaining_future_object_privileges.sql`
+- `20260816140844_revoke_remote_access.sql`
 
 ## OAuth
 
@@ -73,6 +74,7 @@ The invitation expires after ten minutes and can be used once. The node receives
 
 - If pairing fails, create a new invitation; never reuse or extend an expired code.
 - If a node token may be exposed, revoke the node and pair it again.
+- Owners and admins can select **Disconnect machine** in the portal. Revocation atomically disables the node token, expires queued or delivered commands, and appends the acting user/device to the workspace audit history. The local machine retains its files and Git state but cannot reconnect until it is paired again.
 - Rotate `ATELIER_NODE_TOKEN_PEPPER` only with a planned re-pair of every node; hashes created with the old pepper will no longer authenticate.
 - Rotate the Supabase secret key in Supabase and Vercel together, redeploy, verify `/api/health`, then revoke the old key.
 - OAuth client secrets live only in the provider and Supabase Auth configuration.
