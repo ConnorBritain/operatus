@@ -50,8 +50,8 @@ function LoginPage() {
           <div className="login-card pixel-panel">
             <div className="login-card-brand">
               <div className="login-brand-lockup">
-                <img aria-hidden="true" className="login-brand-mark" height="1254" src="/operatus-mark-inverse.png?v=1" width="1254" />
-                <BrandWordmark className="inverse" />
+                <img aria-hidden="true" className="login-brand-mark" height="1024" src="/operatus-icon.png?v=coral-3" width="1024" />
+                <BrandWordmark />
               </div>
             </div>
             <div className="login-card-body">
