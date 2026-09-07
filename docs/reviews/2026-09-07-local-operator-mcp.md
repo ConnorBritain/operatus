@@ -33,3 +33,19 @@ Raw historical UI screenshots and logs under `docs/reviews/assets` are retained
 locally and excluded from this development publication to avoid disclosing
 personal app/account context. Historical reports may refer to those local-only
 captures; they are not downloadable public attachments.
+
+## Installed desktop connection
+
+After installing and reopening the MCP-enabled `/Applications/Operatus.app`, a
+real SDK stdio client discovered all five tools and successfully called
+`operatus_status` and `operatus_runs` against the desktop's authenticated socket.
+Observed: macOS, no startup hold, two concurrent slots, no dispatches, zero runs
+in this profile. This read-only check launched no model sessions and changed no
+run state. A null startup hold is not a substitute for each launch's subscription
+admission check. Codex and Claude Code registrations were verified; Claude Code
+also reported its stdio MCP connection healthy.
+
+Local verification totals: the 18-test operator/desktop-start/authority suite,
+the 26-test operator/isolated-runner suite (five tests overlap), and the standalone
+MCP protocol test all passed. The staged source secret scan found no leaks.
+GitHub CI has not been claimed as passed by this local report.
