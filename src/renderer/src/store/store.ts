@@ -8,6 +8,9 @@ import type { HireManifest } from '@shared/hire';
 import { DEFAULT_BRANCH_PROFILE, type BranchProfile } from '@shared/branchIdentity';
 import { DEFAULT_ORG_TRIGGER, type OrgTriggerConfig, type WebhookTrigger } from '@shared/triggers';
 import { isCompactionCommand } from '@shared/providerAutomation';
+import { partitionRestorable, type AgentLifecycleHint } from '@shared/agentLifecycle';
+import { focusAfterRosterChange, selectionAfterArrival } from './agentViewPolicy';
+import { hasUnassignedRoster, readRosterCache, rosterCacheKey, writeRosterCache } from './rosterCache';
 
 export type ToolKind =
   | 'Read' | 'Edit' | 'Write' | 'Bash' | 'WebFetch' | 'WebSearch'
@@ -28,7 +31,7 @@ export interface BlockReason {
   }>;
 }
 
-export interface Agent {
+export interface Agent extends AgentLifecycleHint {
   id: string;
   name: string;
   /** which Office character represents this agent on the floor */
@@ -176,7 +179,8 @@ interface State {
   updateAgent: (id: string, patch: Partial<Agent>) => void;
   setAgentNote: (id: string, note: string) => void;
   pushFeed: (id: string, line: string) => void;
-  addAgent: (agent: Agent) => void;
+  /** Background arrivals preserve selection; explicit hire completion opts in. */
+  addAgent: (agent: Agent, options?: { select: boolean }) => void;
   removeAgent: (id: string) => void;
   /** Archive an agent (its terminal was closed): move it from the active roster
    *  into `archivedAgents` with its PTY cleared. Retained + flagged, NOT deleted. */
@@ -277,11 +281,6 @@ interface State {
 
 const LS_SIDEBAR_WIDTH = 'cth.sidebarWidth';
 const LS_SIDEBAR_TAB = 'cth.sidebarTab';
-const LS_AGENTS = 'cth.agents';
-const LS_ARCHIVED = 'cth.archivedAgents';
-const LS_RESTORABLE = 'cth.restorableAgents';
-const LS_SELECTED = 'cth.selectedId';
-const LS_QUEUES = 'cth.messageQueues';
 
 // Fields that are large or transient — not worth persisting across reloads.
 // contextTokens/contextLimit describe a LIVE session; persisting them showed a
@@ -298,19 +297,32 @@ type PersistedAgent = Omit<Agent, 'recentAssistantText' | 'recentTextTs' | 'bloc
 // (sessions, memory, inboxes, tasks) was shared and intact the whole time.
 //
 // So we also mirror it to <harnessHome>/roster.json, which both sides reach by
-// path. localStorage keeps being written byte-for-byte as before: it is the
-// fallback when there is no file yet, and a standing backup afterwards. Main
-// keeps every previous version of the file under roster-backups/.
-const fileRoster = (() => {
-  try { return window.cth?.rosterReadSync?.() ?? null; } catch { return null; }
+// path. The browser backup is now one atomic, versioned envelope PER HOME.
+// Old shared cth.* roster keys are preserved but never claimed automatically.
+const rosterBoot = (() => {
+  try { return window.cth?.rosterBootSync?.() ?? { home: null, roster: null }; }
+  catch { return { home: null, roster: null }; }
 })();
-
-/** Prefer the shared file, but only when it actually holds a roster. An empty
- *  file must never win over a populated localStorage — that is exactly the
- *  "opened the build once and my floor went blank" failure this is here to
- *  prevent. A genuine delete-all clears both stores, so nothing resurrects. */
-const useFileRoster = !!fileRoster
-  && fileRoster.agents.length + fileRoster.archived.length + fileRoster.restorable.length > 0;
+const rosterHome = rosterBoot.home;
+const fileRoster = rosterHome ? rosterBoot.roster : null;
+const cachedRoster = (() => {
+  try { return readRosterCache(window.localStorage, rosterHome); } catch { return null; }
+})();
+// An existing empty file is meaningful: never resurrect its stale backup.
+const loadedRoster = fileRoster ?? cachedRoster;
+export const rosterRecoveryNotice = (() => {
+  if (!rosterHome) return 'Roster home could not be established. Reload after choosing a home; roster restore and saving are held.';
+  try {
+    if (window.localStorage.getItem(rosterCacheKey(rosterHome)) !== null && !cachedRoster) {
+      return 'This home’s browser roster cache could not be validated. It is preserved unchanged; the home roster file is used when available.';
+    }
+    const legacy = hasUnassignedRoster(window.localStorage);
+    if (legacy === 'unreadable') return 'Some saved browser roster data could not be read. It has not been changed; the home roster file is still used when available.';
+    const hasAssignedEntries = loadedRoster && loadedRoster.agents.length + loadedRoster.archived.length + loadedRoster.restorable.length > 0;
+    return !hasAssignedEntries && legacy
+      ? 'Older saved agents or queues are preserved but unassigned. They have not been loaded into this home. Recovery tools are not yet available.' : null;
+  } catch { return 'Browser roster storage is unavailable. The home roster file is still used when available.'; }
+})();
 
 /** The renderer's running copy of what should be on disk. Kept as a mutable
  *  mirror updated slice-by-slice rather than read back out of the store, because
@@ -329,29 +341,27 @@ let rosterFlush: ReturnType<typeof setTimeout> | null = null;
 
 function flushRosterNow(): void {
   if (rosterFlush) { clearTimeout(rosterFlush); rosterFlush = null; }
+  if (!rosterHome) return;
   try {
-    void window.cth?.rosterWrite?.({
-      version: 1,
-      savedAt: new Date().toISOString(),
-      agents: rosterMirror.agents,
-      archived: rosterMirror.archived,
-      restorable: rosterMirror.restorable,
-      queues: rosterMirror.queues,
-      selectedId: rosterMirror.selectedId
-    });
-  } catch { /* the file is a mirror — localStorage already took the write */ }
+    void Promise.resolve(window.cth?.rosterWrite?.(rosterSnapshot(), rosterHome)).catch(() => {});
+  } catch { /* keep any available home-bound cache when IPC is unavailable */ }
+}
+
+function rosterSnapshot() {
+  return { version: 1 as const, savedAt: new Date().toISOString(), ...rosterMirror };
 }
 
 /** Coalesce a burst of persist* calls into one disk write. Agent edits arrive in
  *  clusters (spawn writes agents + selection + queues in the same tick). */
 function scheduleRosterFlush(): void {
+  if (!rosterHome) return;
+  try { writeRosterCache(window.localStorage, rosterHome, rosterSnapshot()); } catch { /* file mirror remains available */ }
   if (rosterFlush) return;
   rosterFlush = setTimeout(flushRosterNow, 500);
 }
 
-// Don't let a quit inside the debounce window drop the last edit. localStorage
-// would still have it, but only for THIS origin — and the whole point is that
-// the other origin can read it too.
+// Request a final mirror when quitting inside the debounce window. This is
+// best-effort IPC; the synchronous home-bound cache is the same-origin fallback.
 try {
   window.addEventListener('beforeunload', flushRosterNow);
 } catch { /* not a browser context (unit tests) */ }
@@ -365,10 +375,6 @@ function slimAgents(agents: Agent[]): PersistedAgent[] {
 
 function persistAgents(agents: Agent[], selectedId: string | null): void {
   const slim = slimAgents(agents);
-  try {
-    window.localStorage.setItem(LS_AGENTS, JSON.stringify(slim));
-    window.localStorage.setItem(LS_SELECTED, selectedId ?? '');
-  } catch { /* noop */ }
   rosterMirror.agents = slim;
   rosterMirror.selectedId = selectedId;
   scheduleRosterFlush();
@@ -388,26 +394,14 @@ function touchesDurableAgentField(patch: Partial<Agent>): boolean {
   return Object.keys(patch).some((k) => !VOLATILE_AGENT_FIELDS.has(k as keyof Agent));
 }
 
-/** The persisted list for one slice: the shared file when it has a roster,
- *  otherwise this origin's localStorage. Returns [] on anything malformed. */
-function persistedSlice(
-  key: string,
-  fromFile: unknown[] | undefined
-): PersistedAgent[] {
-  if (useFileRoster) return Array.isArray(fromFile) ? (fromFile as PersistedAgent[]) : [];
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PersistedAgent[]) : [];
-  } catch {
-    return [];
-  }
+/** Slices come from the same home-bound boot snapshot or atomic cache envelope. */
+function persistedSlice(value: unknown[] | undefined): PersistedAgent[] {
+  return Array.isArray(value) ? value as PersistedAgent[] : [];
 }
 
 function loadPersistedAgents(): Agent[] {
   try {
-    const parsed = persistedSlice(LS_AGENTS, fileRoster?.agents);
+    const parsed = persistedSlice(loadedRoster?.agents);
     if (!parsed.length) return [];
     // Reset volatile run-state; the PTY stream / mock loop will repopulate it.
     return parsed.map((a) => ({
@@ -426,16 +420,13 @@ function loadPersistedAgents(): Agent[] {
 
 function persistArchived(archived: Agent[]): void {
   const slim = slimAgents(archived);
-  try {
-    window.localStorage.setItem(LS_ARCHIVED, JSON.stringify(slim));
-  } catch { /* noop */ }
   rosterMirror.archived = slim;
   scheduleRosterFlush();
 }
 
 function loadPersistedArchived(): Agent[] {
   try {
-    const parsed = persistedSlice(LS_ARCHIVED, fileRoster?.archived);
+    const parsed = persistedSlice(loadedRoster?.archived);
     if (!parsed.length) return [];
     // Archived agents have no live process — force the flag + clear run-state.
     return parsed.map((a) => ({
@@ -459,16 +450,13 @@ function persistRestorable(restorable: Agent[]): void {
     void recentAssistantText; void recentTextTs; void blockReason; void seedPrompt;
     return rest;
   });
-  try {
-    window.localStorage.setItem(LS_RESTORABLE, JSON.stringify(slim));
-  } catch { /* noop */ }
   rosterMirror.restorable = slim;
   scheduleRosterFlush();
 }
 
 function loadPersistedRestorable(): Agent[] {
   try {
-    const parsed = persistedSlice(LS_RESTORABLE, fileRoster?.restorable);
+    const parsed = persistedSlice(loadedRoster?.restorable);
     if (!parsed.length) return [];
     // No live process — clear run-state; the spawn recipe fields are what matter.
     return parsed.map((a) => ({
@@ -487,7 +475,6 @@ function persistQueues(queues: Record<string, QueuedMessage[]>): void {
     // Only keep non-empty queues so the key stays small.
     const slim: Record<string, QueuedMessage[]> = {};
     for (const [id, q] of Object.entries(queues)) if (q.length) slim[id] = q;
-    window.localStorage.setItem(LS_QUEUES, JSON.stringify(slim));
     rosterMirror.queues = slim;
     scheduleRosterFlush();
   } catch { /* noop */ }
@@ -495,9 +482,7 @@ function persistQueues(queues: Record<string, QueuedMessage[]>): void {
 
 function loadPersistedQueues(): Record<string, QueuedMessage[]> {
   try {
-    const parsed = useFileRoster
-      ? (fileRoster?.queues as Record<string, QueuedMessage[]> | undefined)
-      : JSON.parse(window.localStorage.getItem(LS_QUEUES) ?? 'null') as Record<string, QueuedMessage[]> | null;
+    const parsed = loadedRoster?.queues as Record<string, QueuedMessage[]> | undefined;
     if (!parsed || typeof parsed !== 'object') return {};
     // Defensively keep only well-formed entries.
     const out: Record<string, QueuedMessage[]> = {};
@@ -514,7 +499,7 @@ function loadPersistedQueues(): Record<string, QueuedMessage[]> {
 
 function loadPersistedSelectedId(agents: Agent[]): string | null {
   try {
-    const id = useFileRoster ? fileRoster?.selectedId : window.localStorage.getItem(LS_SELECTED);
+    const id = loadedRoster?.selectedId;
     return id && agents.some((a) => a.id === id) ? id : (agents[0]?.id ?? null);
   } catch {
     return agents[0]?.id ?? null;
@@ -537,8 +522,12 @@ const initialSidebarTab: SidebarTab = (() => {
 })();
 
 const initialAgents = loadPersistedAgents();
-const initialArchivedAgents = loadPersistedArchived();
-const initialRestorableAgents = loadPersistedRestorable();
+const initialRestorePartition = partitionRestorable(loadPersistedRestorable());
+const initialArchivedAgents = [
+  ...loadPersistedArchived().filter(a => !initialRestorePartition.managed.some(m => m.id === a.id)),
+  ...initialRestorePartition.managed.map(a => ({ ...a, archived: true, ptyId: undefined, action: 'run history; managed by Gauntlet' }))
+];
+const initialRestorableAgents = initialRestorePartition.ordinary;
 const initialSelectedId = loadPersistedSelectedId(initialAgents);
 const initialQueues = loadPersistedQueues();
 
@@ -550,10 +539,10 @@ rosterMirror.restorable = slimAgents(initialRestorableAgents);
 rosterMirror.queues = initialQueues;
 rosterMirror.selectedId = initialSelectedId;
 
-// First run with the file: seed it from this origin's localStorage. Only when
+// First run with the file: seed it only from this home's matching cache. Only when
 // there is something to seed — writing an empty file here would hand a blank
 // roster to the other side, which is precisely the outcome being designed out.
-if (!useFileRoster && rosterMirror.agents.length + rosterMirror.archived.length + rosterMirror.restorable.length > 0) {
+if (!fileRoster && loadedRoster && rosterMirror.agents.length + rosterMirror.archived.length + rosterMirror.restorable.length > 0) {
   scheduleRosterFlush();
 }
 
@@ -599,7 +588,9 @@ export const useStore = create<State>((set) => ({
       // only in memory, so the selector snapped back to the old model on reload
       // and restore relaunched the old command.
       if (touchesDurableAgentField(patch)) persistAgents(agents, s.selectedId);
-      return { agents };
+      return { agents, ...('ptyId' in patch || 'archived' in patch
+        ? { fullscreenAgentId: focusAfterRosterChange(s.fullscreenAgentId, agents, s.selectedId) }
+        : {}) };
     }),
   setAgentNote: (id, note) =>
     set((s) => {
@@ -609,26 +600,34 @@ export const useStore = create<State>((set) => ({
     }),
   pushFeed: (id, line) =>
     set((s) => ({ feeds: { ...s.feeds, [id]: [...(s.feeds[id] ?? []), line] } })),
-  addAgent: (agent) =>
+  addAgent: (agent, options) =>
     set((s) => {
       // Idempotent by id: a MAIN-initiated spawn broadcast (hive:agentSpawned, e.g.
       // a voice hire) and a renderer-initiated hire (AddAgentModal) can both call
       // addAgent for the same id — never render a duplicate card. The first writer
       // (richer local record) wins; the broadcast is a no-op for it.
-      if (s.agents.some((a) => a.id === agent.id)) return s;
+      if (s.agents.some((a) => a.id === agent.id)) {
+        // The main broadcast can arrive before the explicit hire response.
+        // Keep the existing record, but honor that user's selection request.
+        if (!options?.select) return s;
+        persistAgents(s.agents, agent.id);
+        return { selectedId: agent.id, ccTabRequest: null };
+      }
       const agents = [...s.agents, agent];
+      const selectedId = selectionAfterArrival(s.selectedId, agents, agent.id, options?.select);
       // Re-spawning an archived agent un-archives it: an id is active xor archived.
       const archivedAgents = s.archivedAgents.filter((a) => a.id !== agent.id);
       // A live (re)spawn also consumes any restorable entry for the same id.
       const restorableAgents = s.restorableAgents.filter((a) => a.id !== agent.id);
-      persistAgents(agents, agent.id);
+      persistAgents(agents, selectedId);
       persistArchived(archivedAgents);
       if (restorableAgents.length !== s.restorableAgents.length) persistRestorable(restorableAgents);
       return {
         agents,
         archivedAgents,
         restorableAgents,
-        selectedId: agent.id,
+        selectedId,
+        ...(options?.select ? { ccTabRequest: null } : {}),
         feeds: { ...s.feeds, [agent.id]: s.feeds[agent.id] ?? [] }
       };
     }),
@@ -640,7 +639,8 @@ export const useStore = create<State>((set) => ({
       const selectedId = s.selectedId === id ? (agents[0]?.id ?? null) : s.selectedId;
       persistAgents(agents, selectedId);
       if (_queueGone) persistQueues(messageQueues);
-      return { agents, feeds, selectedId, messageQueues };
+      return { agents, feeds, selectedId, messageQueues,
+        fullscreenAgentId: focusAfterRosterChange(s.fullscreenAgentId, agents, selectedId) };
     }),
   archiveAgent: (id) =>
     set((s) => {
@@ -664,7 +664,8 @@ export const useStore = create<State>((set) => ({
       persistAgents(agents, selectedId);
       persistArchived(archivedAgents);
       if (_queueGone) persistQueues(messageQueues);
-      return { agents, archivedAgents, feeds, selectedId, messageQueues };
+      return { agents, archivedAgents, feeds, selectedId, messageQueues,
+        fullscreenAgentId: focusAfterRosterChange(s.fullscreenAgentId, agents, selectedId) };
     }),
   removeArchivedAgent: (id) =>
     set((s) => {
@@ -792,9 +793,14 @@ export const useStore = create<State>((set) => ({
       const dead = s.agents.filter(
         (a) => a.ptyId && !live.has(a.ptyId) && !a.isGod && !a.isAssistant
       );
-      const restorableAgents = [
+      const partition = partitionRestorable([
         ...s.restorableAgents.filter((r) => !dead.some((d) => d.id === r.id)),
         ...dead
+      ]);
+      const restorableAgents = partition.ordinary;
+      const archivedAgents = [
+        ...s.archivedAgents.filter(a => !partition.managed.some(m => m.id === a.id)),
+        ...partition.managed.map(a => ({ ...a, archived: true, ptyId: undefined, action: 'run history; managed by Gauntlet' }))
       ];
       const feeds: Record<string, string[]> = {};
       for (const a of agents) feeds[a.id] = s.feeds[a.id] ?? [];
@@ -803,12 +809,16 @@ export const useStore = create<State>((set) => ({
         : (agents[0]?.id ?? null);
       persistAgents(agents, selectedId);
       persistRestorable(restorableAgents);
-      return { agents, feeds, selectedId, restorableAgents };
+      persistArchived(archivedAgents);
+      return { agents, feeds, selectedId, restorableAgents, archivedAgents,
+        fullscreenAgentId: focusAfterRosterChange(s.fullscreenAgentId, agents, selectedId) };
     }),
   setAddAgentOpen: (open) => set({ addAgentOpen: open }),
   pendingHire: null,
   setPendingHire: (m) => set({ pendingHire: m }),
-  setFullscreen: (id) => set({ fullscreenAgentId: id }),
+  setFullscreen: (id) => set((s) => ({
+    fullscreenAgentId: id && s.agents.some(a => a.id === id && a.ptyId && !a.archived) ? id : null
+  })),
   setFullscreenFile: (path, view) => set({ fullscreenFilePath: path, fullscreenFileView: view ?? 'edit' }),
   setIdeOpen: (open) => set({ ideOpen: open }),
   setIdeInitialFile: (path) => set({ ideInitialFile: path }),

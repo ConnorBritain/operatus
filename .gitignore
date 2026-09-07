@@ -31,3 +31,13 @@ docs/media/*.mov
 docs/media/MunderDifflin*.mp4
 .vercel
 .env*
+
+# Local acceptance captures can contain personal app/account context. Publish
+# written results and reproducible test tools, not raw private screenshots/logs.
+/docs/reviews/assets/
+
+# Keep new Mac source exports discoverable even with a global build/ ignore.
+!/build/
+/build/*
+!/build/icon-macos.png
+!/build/MACOS-ICON.md

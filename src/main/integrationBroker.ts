@@ -71,6 +71,7 @@ function isLoopback(addr: string): boolean {
   return a === '::1' || a.startsWith('127.');
 }
 
+import { apiInferenceError } from '../shared/billingPolicy';
 export class IntegrationBroker {
   private server: Server | null = null;
   private port = 0;
@@ -170,6 +171,10 @@ export class IntegrationBroker {
   }
 
   private handle(req: IncomingMessage, res: ServerResponse): void {
+    // Generic credentialed forwarding can reach arbitrary inference gateways.
+    // Re-enable only audited non-inference integrations through narrow adapters.
+    const billingError = apiInferenceError();
+    if (billingError) return IntegrationBroker.sendError(res, 403, 'subscriptions_only', billingError);
     // 1) Loopback — defense in depth even though the bind already excludes others.
     if (!isLoopback(req.socket.remoteAddress ?? '')) {
       return IntegrationBroker.sendError(res, 403, 'forbidden', 'loopback callers only');

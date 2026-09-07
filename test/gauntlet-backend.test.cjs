@@ -58,6 +58,7 @@ test('local backend conducts implementation, repair, fresh re-critique, and expl
     runId, launchId: implementer.launch.id, token: implementer.token, sha: firstSha
   });
   assert.equal(snapshot.run.status, 'awaiting_critic');
+  assert.equal(readFileSync(join(implementer.launch.worktreePath,'value.txt'),'utf8'),'needs-repair\n','completion receipt does not remove the worker cwd');
   assert.equal(snapshot.artifacts[0].checkReceipts[0].exitCode, 1);
 
   const criticOne = backend.prepareCritic(runId);
@@ -69,6 +70,7 @@ test('local backend conducts implementation, repair, fresh re-critique, and expl
     findings: [{ id: 'value-wrong', severity: 'major', title: 'Wrong value', evidence: 'value.txt contains needs-repair', criterionIds: ['value-file'] }]
   });
   const report = snapshot.reports.at(-1);
+  assert.equal(readFileSync(join(criticOne.launch.worktreePath,'value.txt'),'utf8'),'needs-repair\n','report receipt does not remove the Critic cwd');
   snapshot = backend.acknowledge({
     runId, reportId: report.id, conductorLaunchId: 'conductor', decision: 'repair',
     acceptedFindingIds: ['value-wrong'], rejectedFindings: [], rationale: 'The evidence is reproducible.',
@@ -100,7 +102,22 @@ test('local backend conducts implementation, repair, fresh re-critique, and expl
   assert.equal(snapshot.reports.length, 2);
   assert.equal(snapshot.acknowledgments.length, 2);
   assert.ok(snapshot.launches.every((launch) => launch.status === 'completed' && launch.finishedAt));
+  assert.ok(snapshot.launches.every(launch=>existsSync(launch.worktreePath)),'protocol completion does not prove process termination');
   assert.equal(readFileSync(join(repository, 'value.txt'), 'utf8'), 'base\n', 'shared checkout remains untouched');
+  // This fixture executes real Git/checks but supplies scripted Critic judgments.
+  const {needsOperator,isClosedRun} = loadTs('src/renderer/src/gauntlet/runViewState.ts');
+  assert.equal(needsOperator(snapshot.run),true,'a passed candidate still needs a human handoff');
+  const beforeHandoff=snapshot,primarySha=git(repository,['rev-parse','HEAD']);
+  assert.throws(()=>backend.recordCandidateHandoff(runId,snapshot.run.version,firstSha,true,'Wrong revision'),/candidate changed/);
+  snapshot=backend.recordCandidateHandoff(runId,snapshot.run.version,repairedSha,true,'Owner: operator. Set aside for a separate integration review.');
+  assert.equal(isClosedRun(snapshot.run),true);
+  for(const key of ['artifacts','reports','acknowledgments','launches','repairPackets']) assert.deepEqual(snapshot[key],beforeHandoff[key]);
+  assert.deepEqual(snapshot.run.contract,beforeHandoff.run.contract);
+  assert.equal(snapshot.run.status,'passed');assert.equal(git(repository,['rev-parse','HEAD']),primarySha);
+  assert.throws(()=>backend.recordCandidateHandoff(runId,beforeHandoff.run.version,repairedSha,true,'Stale'),/stale run version/);
+  backend.close();backend.open();assert.deepEqual(backend.status(runId),snapshot);
+  snapshot=backend.recordCandidateHandoff(runId,snapshot.run.version,repairedSha,false,'Owner: operator. Revisit integration tomorrow.');
+  assert.equal(needsOperator(snapshot.run),true);assert.equal(snapshot.run.status,'passed');
   backend.close();
 });
 

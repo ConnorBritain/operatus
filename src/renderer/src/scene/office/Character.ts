@@ -3,6 +3,7 @@ import { CharacterSprite, type Direction, type AnimState } from './CharacterSpri
 import { findPath } from './pathfinding';
 import type { TiledMapRenderer } from './TiledMapRenderer';
 import { ThoughtBubble } from './ThoughtBubble';
+import { ambientOfficeMotionEnabled } from '@shared/officeMotion';
 
 // Adapted from shahar061/the-office (office/characters/Character.ts).
 // Differences: keyed by our dynamic agentId (not a fixed role); seat tile +
@@ -175,8 +176,16 @@ export class Character {
     return this.mapRenderer.pixelToTile(this.px, this.py - 1);
   }
 
-  moveTo(tile: { x: number; y: number }): void {
+  moveTo(tile: { x: number; y: number }): boolean {
     const path = findPath(this.mapRenderer, this.getTilePosition(), tile);
+    // A failed new destination must not finish the previous route and fire the
+    // new arrival callback at the wrong station. Stay visibly idle where we are.
+    if (path === null) {
+      this.setIdle();
+      this.arrivalCallback = null;
+      return false;
+    }
+    this.path = path;
     if (path && path.length > 0) {
       this.sitting = false; // stand up before walking (clears the sit offset)
       this.sprite.setSeatedCrop(0); // show legs again while standing/walking
@@ -184,6 +193,7 @@ export class Character {
       this.state = 'walk';
       this.sprite.setAnimation('walk', this.direction);
     }
+    return true;
   }
 
   walkToAndThen(tile: { x: number; y: number }, callback: () => void): void {
@@ -294,6 +304,7 @@ export class Character {
   /** Roam the office between tasks. Picks random walkable tiles and strolls
    *  to them until the agent is given work again. */
   startWandering(): void {
+    if (!ambientOfficeMotionEnabled()) { this.sitAtDesk(false); return; }
     if (this.idleLoop && this.wandering) return; // already in the linger phase
     // (Re)enter the idle loop at its linger phase, then begin roaming.
     this.idleLoop = true;

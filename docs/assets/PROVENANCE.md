@@ -4,6 +4,16 @@ The Operatus operations floor is new clean-room work. It began under the working
 
 Restricted Munder/LimeZu tiles, maps, base character sheets, recolors, screenshots, and promotional imagery were not used as references or inputs. Code adapted from upstream remains covered by its source license and attribution independently from the removed art.
 
+## Bundled desktop fonts — 2026-09-06
+
+Press Start 2P, Inter and JetBrains Mono are third-party OFL 1.1 fonts, not
+clean-room Operatus artwork. Their three unmodified Latin-subset WOFF2 files were
+adopted from stable Munder commit `41ea4c37b1a21dee7b9c82e9f0e60f43032634c5`.
+Copyright and full license notices ship as
+`src/renderer/public/third-party-fonts.txt` and `out/renderer/third-party-fonts.txt`.
+See the [adoption record](../reviews/2026-09-06-upstream-offline-fonts.md) for exact
+digests, authors, build checks and outstanding visual acceptance.
+
 ## Operations floor — 2026-08-15
 
 - Source: `src/renderer/src/assets/operatus/operatus-operations-floor-source.png`

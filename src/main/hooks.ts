@@ -10,8 +10,9 @@
  *
  * Runs in the Electron main process.
  */
-import { createServer, type Server } from 'node:net';
-import { existsSync, rmSync } from 'node:fs';
+import { createServer, type Server, type Socket } from 'node:net';
+import { lstatSync } from 'node:fs';
+import { prepareHookSocketDirectory } from './hookSocket';
 import { Notification, type WebContents } from 'electron';
 import type { HiveManager } from './hive';
 import type { HarnessConfig } from './config';
@@ -47,6 +48,9 @@ interface HookPayload {
 
 export class HookServer {
   private server: Server | null = null;
+  private lifecycle: Promise<void> = Promise.resolve();
+  private connections = new Set<Socket>();
+  private boundPath: string | null = null;
   /** agentId → the live session's transcript file, learned from hook payloads.
    *  Lets the harness read per-agent telemetry (e.g. current context size)
    *  even when several agents share one cwd. */
@@ -70,13 +74,32 @@ export class HookServer {
     private breaker?: CircuitBreaker
   ) {}
 
-  start(): void {
+  start(): Promise<void> {
     const sock = this.hive.sockPath();
-    if (!sock || this.server) return;
-    // Clear a stale socket file left by a previous run.
-    try { if (existsSync(sock)) rmSync(sock); } catch { /* noop */ }
+    if (!sock) return Promise.resolve();
+    const operation = this.lifecycle.then(() => this.listen(sock));
+    this.lifecycle = operation.catch(() => {});
+    return operation;
+  }
 
-    this.server = createServer((conn) => {
+  private async listen(sock: string): Promise<void> {
+    if (this.server) {
+      if (this.boundPath !== sock) throw Error('Stop the hook server before changing homes');
+      return;
+    }
+    prepareHookSocketDirectory(sock);
+    if (process.platform !== 'win32') {
+      // lstat also catches dangling symlinks; do not let bind follow one into
+      // another location. A collision is a refusal, never cleanup authority.
+      let exists = true;
+      try { lstatSync(sock); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') exists = false; else throw error; }
+      if (exists) throw Error('EADDRINUSE: hook endpoint already exists');
+    }
+
+    const server = createServer((conn) => {
+      this.connections.add(conn);
+      conn.once('close', () => this.connections.delete(conn));
       let buf = '';
       conn.on('data', (d) => {
         buf += d.toString();
@@ -90,15 +113,31 @@ export class HookServer {
       });
       conn.on('error', () => { /* shim hung up — ignore */ });
     });
-    this.server.on('error', (e) => console.error('[hive] hook server error:', e));
-    this.server.listen(sock);
+    server.on('error', (e) => console.error('[hive] hook server error:', e));
+    // No unlink on failed bind: the endpoint may belong to another listener.
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(sock, () => { server.removeListener('error', reject); resolve(); });
+    });
+    this.server = server;
+    this.boundPath = sock;
   }
 
-  stop(): void {
-    try { this.server?.close(); } catch { /* noop */ }
-    this.server = null;
-    const sock = this.hive.sockPath();
-    try { if (sock && existsSync(sock)) rmSync(sock); } catch { /* noop */ }
+  stop(): Promise<void> {
+    const operation = this.lifecycle.then(async () => {
+      const server = this.server;
+      if (!server) return;
+      this.server = null;
+      this.boundPath = null;
+      for (const connection of this.connections) connection.destroy();
+      // Node closes and removes only the endpoint bound by this server. Do not
+      // look up the current home or remove arbitrary/stale filesystem entries.
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+      this.transcriptPaths.clear();
+      this.contextById.clear();
+    });
+    this.lifecycle = operation.catch(() => {});
+    return operation;
   }
 
   /** The transcript file of an agent's CURRENT session, if any hook has fired. */

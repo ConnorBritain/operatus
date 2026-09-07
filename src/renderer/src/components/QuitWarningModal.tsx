@@ -146,9 +146,9 @@ export function QuitWarningModal({ ptyCount, closing, onCancel, onConfirm, onClo
                     </div>
                     <div style={{ fontSize: 15, lineHeight: '22px', color: 'var(--cth-ink-700)' }}>
                       Closing the harness will terminate{' '}
-                      {ptyCount === 1 ? 'the running claude session' : `all ${ptyCount} running claude sessions`}{' '}
-                      and discard any unsaved progress they were holding in memory. The conversation
-                      history inside each session is lost when the PTY exits.
+                      {ptyCount === 1 ? 'the running agent session' : `all ${ptyCount} running agent sessions`}{' '}
+                      and interrupt work in progress. Unsaved in-memory work may be lost.
+                      Saved files and any provider-persisted conversation history remain on disk.
                     </div>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import { resolveCommand, userShellPath } from './shellEnv';
 import { expandTilde } from './fs';
 import { projectDir } from './transcript';
 import { ensureKilled } from './procKill';
+import { minimalHostEnvironment, subscriptionLaunchError, withoutInferenceCredentials } from '../shared/billingPolicy';
 
 /**
  * Shared helper: run a HIDDEN interactive claude session (ephemeral PTY) and
@@ -14,9 +15,9 @@ import { ensureKilled } from './procKill';
  * not visible in the agent list or OfficeFloor scene. Each call spawns its own
  * session and kills it after capture — no /clear needed, no context bleed.
  *
- * Uses an interactive PTY (not `claude -p`) so calls draw from the user's
- * normal interactive plan quota, not the Agent SDK credit that moves to a
- * separate claim-required pool from 2026-06-15.
+ * Legacy interactive PTY transport. Interactive mode does not prove subscription
+ * billing. This path remains held until account admission and configuration/
+ * execution confinement are validated; it must not become a paid fallback.
  *
  * Session lifecycle:
  *   spawn → boot-quiet detect → bracketed-paste prompt + \r → idle-settle →
@@ -97,6 +98,8 @@ function extractLastAssistantText(cwd: string, spawnedAt: number): string | null
 }
 
 export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Promise<HiddenClaudeResult> {
+  const billingError = subscriptionLaunchError('claude');
+  if (billingError) return Promise.resolve({ ok: false, error: billingError });
   return new Promise((resolve) => {
     if (!prompt.trim()) { resolve({ ok: false, error: 'empty prompt' }); return; }
     // Defense-in-depth: `~` is shell syntax, not a path Node understands.
@@ -137,11 +140,11 @@ export function runHiddenClaude(prompt: string, opts: HiddenClaudeOptions): Prom
         cols: 220,
         rows: 50,
         cwd: opts.cwd,
-        env: {
-          ...process.env,
+        env: withoutInferenceCredentials({
+          ...minimalHostEnvironment(process.env),
           PATH: userShellPath(),
           ...(opts.env ?? {}),
-        } as Record<string, string>,
+        }),
       });
     } catch (e) {
       resolve({ ok: false, error: e instanceof Error ? e.message : String(e) });

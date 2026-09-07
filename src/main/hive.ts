@@ -23,6 +23,8 @@ import {
 } from 'node:fs';
 import { join, dirname, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
+import { hookSocketPath } from './hookSocket';
+import { apiInferenceError } from '../shared/billingPolicy';
 import { spawnSync, spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
 import type { AgentUsageSample } from './usage';
@@ -295,11 +297,13 @@ export class HiveManager {
   enabled(): boolean {
     return this.root() !== null;
   }
+  private readonly hookSocketScope = randomBytes(16).toString('hex');
   private agentDir(id: string): string {
     return join(this.root()!, 'agents', id);
   }
   /** IPC endpoint the cth-hook shim talks to (Phase 1 autonomy).
-   *  On POSIX this is a Unix-domain socket file under the hive root. On Windows,
+   *  On POSIX this is a short, process-scoped endpoint in a private user directory.
+   *  It stays stable within this Hive instance, not across app restarts. On Windows,
    *  Node's `net` IPC uses named pipes (a flat `\\.\pipe\` namespace, not the
    *  filesystem), so a raw file path fails to bind with EACCES — derive a stable,
    *  per-root pipe name instead. Both the server (`listen`) and the shim
@@ -307,11 +311,7 @@ export class HiveManager {
   sockPath(): string | null {
     const root = this.root();
     if (!root) return null;
-    if (process.platform === 'win32') {
-      const id = createHash('sha1').update(root).digest('hex').slice(0, 12);
-      return `\\\\.\\pipe\\operatus-${id}`;
-    }
-    return join(root, 'hooks.sock');
+    return hookSocketPath(root, this.hookSocketScope);
   }
   private shimPath(): string | null {
     const root = this.root();
@@ -934,6 +934,7 @@ export class HiveManager {
     agentId: string,
     cfg: { sock: string; sessionId: string; api: 'openai' | 'anthropic'; upstream: string }
   ): Promise<number> {
+    if (apiInferenceError()) return Promise.resolve(0);
     this.stopProxyBridge(agentId);
     const script = this.proxyShimPath();
     if (!script) return Promise.resolve(0);

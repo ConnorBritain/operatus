@@ -1,13 +1,12 @@
-import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import {
   chmodSync,
-  cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
+  statfsSync,
   writeFileSync
 } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -20,6 +19,7 @@ import type {
   SkillLockReceipt
 } from '../../shared/gauntlet';
 import { assertFullSha, GauntletInvariantError } from './core';
+import { inspectSkillTree, newSkillTreeBudget, readSkillInstructions } from './skillTree';
 
 export const MATT_POCKOCK_SKILLS_SOURCE: SkillDepotSource = {
   id: 'mattpocock-skills',
@@ -88,14 +88,17 @@ export class SkillDepot {
     if (!existsSync(checkout)) return [];
     const actual = git(checkout, ['rev-parse', 'HEAD']).trim();
     if (actual !== source.pinnedCommit) throw new GauntletInvariantError(`Skill Depot checkout drifted for ${source.id}`);
+    if (git(checkout, ['status', '--porcelain', '--untracked-files=all']).trim()) throw new GauntletInvariantError('Skill Depot checkout has uncommitted changes');
     const discovered: DepotSkill[] = [];
     for (const base of [...source.include, ...source.optIn]) {
       const basePath = safeInside(checkout, base);
       if (!existsSync(basePath)) continue;
       for (const skillPath of findSkillDirs(basePath)) {
         const relativePath = relative(checkout, skillPath).split(sep).join('/');
-        const text = readFileSync(join(skillPath, 'SKILL.md'), 'utf8');
+        const digest = digestTree(skillPath); // bound the tree before loading its instruction text
+        const text = readSkillInstructions(join(skillPath, 'SKILL.md'));
         const name = frontmatter(text, 'name') || basename(skillPath);
+        validateSkillName(name);
         const description = frontmatter(text, 'description');
         discovered.push({
           sourceId: source.id,
@@ -103,7 +106,7 @@ export class SkillDepot {
           name,
           description,
           relativePath,
-          digest: digestTree(skillPath),
+          digest,
           optIn: source.optIn.some((prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}/`))
         });
       }
@@ -116,13 +119,16 @@ export class SkillDepot {
       throw new GauntletInvariantError('a run may assign at most 200 skills');
     }
     const sources = this.listSources();
-    const catalogs = new Map(sources.map((source) => [source.id, this.discover(source)]));
+    const catalogs = new Map(sources.filter(source => source.enabled).map((source) => [source.id, this.discover(source)]));
     const seen = new Set<string>();
     const entries: SkillLockEntry[] = assignments.map((assignment) => {
+      if (!['conductor','implementer','critic','repairer'].includes(assignment.role)) throw new GauntletInvariantError('invalid skill role');
       const collisionKey = `${assignment.role}:${assignment.skillName}`;
       if (seen.has(collisionKey)) throw new GauntletInvariantError(`skill collision requires explicit precedence: ${collisionKey}`);
       seen.add(collisionKey);
-      const skill = catalogs.get(assignment.sourceId)?.find((entry) => entry.name === assignment.skillName);
+      const matches = catalogs.get(assignment.sourceId)?.filter((entry) => entry.name === assignment.skillName) ?? [];
+      if (matches.length > 1) throw new GauntletInvariantError('skill name is ambiguous within source');
+      const skill = matches[0];
       if (!skill) throw new GauntletInvariantError(`unresolved skill: ${assignment.sourceId}/${assignment.skillName}`);
       return {
         sourceId: skill.sourceId,
@@ -133,19 +139,51 @@ export class SkillDepot {
         role: assignment.role
       };
     });
+    // Reject an oversized role assignment before backend.start persists a run.
+    const budgets = new Map<GauntletRole, ReturnType<typeof newSkillTreeBudget>>();
+    for (const entry of entries) {
+      const budget = budgets.get(entry.role) ?? newSkillTreeBudget(); budgets.set(entry.role, budget);
+      const sourcePath = safeInside(join(this.root, 'checkouts', entry.sourceId), entry.relativePath);
+      if (inspectSkillTree(sourcePath, budget) !== entry.digest) throw new GauntletInvariantError('skill changed during locking');
+    }
     return { runId, entries, createdAt: Date.now() };
   }
 
   materialize(lock: SkillLockReceipt, role: GauntletRole, destination: string): void {
     if (!isAbsolute(destination)) throw new GauntletInvariantError('skill destination must be absolute');
-    mkdirSync(destination, { recursive: true });
+    if (!Array.isArray(lock.entries) || lock.entries.length > 200) throw new GauntletInvariantError('invalid skill lock');
+    const names = new Set<string>();
+    const planned = newSkillTreeBudget();
+    const entries: Array<{ entry: SkillLockEntry; sourcePath: string; target: string }> = [];
     for (const entry of lock.entries.filter((candidate) => candidate.role === role)) {
+      validateSkillName(entry.skillName);
+      if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(entry.sourceId) || !/^[a-f0-9]{64}$/.test(entry.digest)) throw new GauntletInvariantError('invalid locked skill identity');
+      assertFullSha(entry.sourceCommit, 'locked skill source commit');
+      if (names.has(entry.skillName)) throw new GauntletInvariantError('duplicate locked skill name');
+      names.add(entry.skillName);
       const sourceRoot = join(this.root, 'checkouts', entry.sourceId);
       const sourcePath = safeInside(sourceRoot, entry.relativePath);
-      if (digestTree(sourcePath) !== entry.digest) throw new GauntletInvariantError(`skill changed after lock: ${entry.skillName}`);
+      if (git(sourceRoot, ['rev-parse', 'HEAD']).trim() !== entry.sourceCommit) throw new GauntletInvariantError('locked skill source commit changed');
+      if (inspectSkillTree(sourcePath, planned) !== entry.digest) throw new GauntletInvariantError(`skill changed after lock: ${entry.skillName}`);
+      if (git(sourceRoot, ['status', '--porcelain', '--untracked-files=all']).trim()) throw new GauntletInvariantError('locked skill checkout has uncommitted changes');
+      if (!lstatSync(join(sourcePath, 'SKILL.md')).isFile()) throw new GauntletInvariantError('missing skill instructions');
       const target = join(destination, entry.skillName);
-      if (existsSync(target)) throw new GauntletInvariantError(`skill target already exists: ${entry.skillName}`);
-      cpSync(sourcePath, target, { recursive: true, dereference: false, errorOnExist: true });
+      try { lstatSync(target); throw new GauntletInvariantError(`skill target already exists: ${entry.skillName}`); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      entries.push({ entry, sourcePath, target });
+    }
+    // Inspect every selected skill before creating/copying any target content.
+    // Leave room for diagnostics and the protocol journal; this is not a quota
+    // or a guarantee against unrelated processes consuming the same filesystem.
+    let volume = destination;
+    while (!existsSync(volume) && dirname(volume) !== volume) volume = dirname(volume);
+    const space = statfsSync(volume, { bigint: true });
+    if (space.bavail * space.bsize < BigInt(planned.bytes) + 512n * 1024n * 1024n) throw new GauntletInvariantError('Insufficient space for assigned skills while preserving a 512 MiB diagnostic reserve');
+    mkdirSync(destination, { recursive: true });
+    if (!lstatSync(destination).isDirectory() || lstatSync(destination).isSymbolicLink()) throw new GauntletInvariantError('invalid skill destination');
+    const copied = newSkillTreeBudget();
+    for (const { entry, sourcePath, target } of entries) {
+      if (inspectSkillTree(sourcePath, copied, target) !== entry.digest || digestTree(target) !== entry.digest) throw new GauntletInvariantError('materialized skill digest mismatch');
       makeReadOnly(target);
     }
   }
@@ -191,27 +229,23 @@ function findSkillDirs(root: string): string[] {
 }
 
 function digestTree(root: string): string {
-  const hash = createHash('sha256');
-  const visit = (dir: string): void => {
-    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const path = join(dir, entry.name);
-      const rel = relative(root, path).split(sep).join('/');
-      const stat = lstatSync(path);
-      if (stat.isSymbolicLink()) throw new GauntletInvariantError(`symlink rejected in skill: ${rel}`);
-      hash.update(entry.isDirectory() ? `d:${rel}\0` : `f:${rel}\0`);
-      if (entry.isDirectory()) visit(path);
-      if (entry.isFile()) hash.update(readFileSync(path));
-    }
-  };
-  visit(root);
-  return hash.digest('hex');
+  return inspectSkillTree(root);
 }
 
 function safeInside(root: string, rel: string): string {
   const target = resolve(root, rel);
   const diff = relative(resolve(root), target);
   if (!diff || diff.startsWith('..') || isAbsolute(diff)) throw new GauntletInvariantError('path escaped Skill Depot checkout');
+  let parent = resolve(root);
+  for (const segment of ['', ...diff.split(sep)]) {
+    parent = join(parent, segment);
+    if (existsSync(parent) && lstatSync(parent).isSymbolicLink()) throw new GauntletInvariantError('symlink rejected in Skill Depot path');
+  }
   return target;
+}
+
+function validateSkillName(name: string): void {
+  if (typeof name !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(name)) throw new GauntletInvariantError('invalid skill name');
 }
 
 function makeReadOnly(root: string): void {

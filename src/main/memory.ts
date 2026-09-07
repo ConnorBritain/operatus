@@ -16,6 +16,7 @@
 import { existsSync, statSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { subscriptionLaunchError } from '../shared/billingPolicy';
 import { ensureKilled } from './procKill';
 
 /** Non-memory files `mempalace mine` must not ingest: the Claude Code hooks
@@ -180,6 +181,7 @@ export class MemoryManager {
    *  them concurrently makes all but one fail with "held by another writer".
    *  `mining` guards against a slow pass overlapping the next interval tick. */
   async mineNow(): Promise<void> {
+    if (subscriptionLaunchError()) return;
     const home = this.getHome();
     const bin = this.bin();
     if (!this.active() || !home || !bin) return;
@@ -206,6 +208,7 @@ export class MemoryManager {
   }
 
   private mineAgent(agentDir: string, id: string): Promise<void> {
+    if (subscriptionLaunchError()) return Promise.resolve();
     return new Promise((resolve) => {
       const bin = this.bin();
       if (!bin) { resolve(); return; }
@@ -244,6 +247,8 @@ export class MemoryManager {
    *  process (renderer IPC, timers, every window) for up to two minutes. Same
    *  contract, but the event loop keeps breathing and a wedged CLI is swept. */
   private runCli(args: string[], label: string): Promise<{ ok: boolean; output: string; error?: string }> {
+    const billingError = subscriptionLaunchError();
+    if (billingError) return Promise.resolve({ ok: false, output: '', error: billingError });
     return new Promise((resolve) => {
       const bin = this.bin();
       if (!this.active() || !bin) { resolve({ ok: false, output: '', error: 'semantic memory not active' }); return; }

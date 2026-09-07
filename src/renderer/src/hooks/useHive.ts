@@ -702,9 +702,8 @@ export function useHive(config: HarnessConfig | null): void {
       // Hold queued messages until the target finishes its boot sequence.
       if ((bootGraceUntil.current[target.id] ?? 0) >= now) return { sent: false };
       // The user owns the prompt: a draft they are writing, or a menu they
-      // opened, holds delivery. Both blocks expire after half an hour, and when
-      // one does we simply type after whatever is there — automation never
-      // erases the user's text and never closes the user's menu.
+      // opened, holds delivery until explicitly released. Time spent thinking,
+      // away or on another project never authorizes appending to their draft.
       if (!isTerminalAutomationSafe(target.ptyId, now)) return { sent: false };
       if (now - (lastFlush.current[target.id] ?? 0) < FLUSH_COOLDOWN_MS) return { sent: false };
       const flightKey = `${srcId}:${next.id}`;
@@ -896,6 +895,9 @@ export function useHive(config: HarnessConfig | null): void {
         currentStation: 'desk',
         ptyId: rec.id,
         command: rec.command,
+        worktreePath: rec.worktreePath,
+        lifecycleOwner: rec.lifecycleOwner,
+        gauntletRunId: rec.gauntletRunId,
         provider: rec.provider as Agent['provider'],
         isGod: false,
         recentTextTs: Date.now()

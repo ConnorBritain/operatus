@@ -250,12 +250,12 @@ export async function addWorktree(
   return { ok: false, error: fallback.error };
 }
 
-/** Best-effort removal of an agent's worktree. Forced so a dirty tree doesn't
- *  block teardown; failures are surfaced but callers may ignore them. */
+/** Ordinary cleanup never force-discards modified or untracked files. Gauntlet
+ * ownership must be excluded by the caller before this legacy helper is used. */
 export async function removeWorktree(
   cwd: string, wtPath: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const res = await runGit(cwd, ['worktree', 'remove', '--force', wtPath]);
+  const res = await runGit(cwd, ['worktree', 'remove', wtPath]);
   if (res.ok) return { ok: true };
   return { ok: false, error: res.error };
 }

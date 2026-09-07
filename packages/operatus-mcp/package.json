@@ -1,0 +1,12 @@
+{
+  "name": "operatus-local-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local stdio MCP operator for the Operatus desktop",
+  "license": "MIT",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "bin": { "operatus-mcp": "server.mjs" },
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "dependencies": { "@modelcontextprotocol/sdk": "1.29.0", "zod": "4.4.3" }
+}

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { ambientOfficeMotionEnabled } from '@shared/officeMotion';
 import { Application, Container, Graphics, Sprite, Ticker, Texture } from 'pixi.js';
 // PixiJS uses new Function() internally, blocked by Electron CSP — this patches it.
 import 'pixi.js/unsafe-eval';
@@ -15,6 +16,11 @@ import { loadTheme, resolveThemeMap, themeTilesetUrls } from './themeLoader';
 import { installContextLossRecovery } from './glRecovery';
 import type { Tile, Facing, ErrandKind, ErrandSpot } from './themeRegistry';
 import { branchTheme } from '@shared/branchIdentity';
+import type { OfficeActor } from '../../gauntlet/officeProjection';
+import { nativeFloorLayer, type NativeFloorCount } from './nativeFloorLayer';
+import { floorVisibility } from './floorVisibility';
+
+const NO_NATIVE_ACTORS: OfficeActor[] = [];
 
 // The map, tileset atlases, desk-claim order, errand spots, coffee-economy
 // tiles, prop anchors, monitor gids and palette all come from the active
@@ -157,9 +163,26 @@ function firstWords(prompt: string | undefined, maxWords = 6, maxChars = 42): st
   return out;
 }
 
-export function OfficeFloor() {
+export function OfficeFloor({ nativeActors = NO_NATIVE_ACTORS, onInspectRun, visible = true }: {
+  nativeActors?: OfficeActor[]; onInspectRun?: (id: string) => void; visible?: boolean;
+}) {
+  const nativeProps = useRef({ nativeActors, onInspectRun });
+  const nativeLayerRef = useRef<ReturnType<typeof nativeFloorLayer> | null>(null);
+  const [nativeCount, setNativeCount] = useState<NativeFloorCount>({ seated: 0, pending: 0, unseated: 0 });
+  useEffect(() => {
+    nativeProps.current = { nativeActors, onInspectRun };
+    nativeLayerRef.current?.sync(nativeActors);
+  }, [nativeActors, onInspectRun]);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
+  const fullscreen = useStore((s) => !!s.fullscreenAgentId || !!s.fullscreenFilePath);
+  const covered = !visible || fullscreen;
+  const coveredRef = useRef(covered);
+  const visibilityRef = useRef<ReturnType<typeof floorVisibility> | null>(null);
+  useEffect(() => {
+    coveredRef.current = covered;
+    visibilityRef.current?.refresh();
+  }, [covered]);
   const mountIdRef = useRef(0);
   // Bumped when the WebGL context is evicted; a dep of the effect below, so the
   // whole scene is torn down and rebuilt through the existing mount path rather
@@ -179,6 +202,8 @@ export function OfficeFloor() {
     const mountId = ++mountIdRef.current;
     const app = new Application();
     appRef.current = app;
+    const visibility = floorVisibility(document, () => coveredRef.current);
+    visibilityRef.current = visibility;
 
     const runtimes = new Map<string, Runtime>();
     const seatClaims = new Set<number>();
@@ -191,6 +216,7 @@ export function OfficeFloor() {
       // Load the active theme bundle (falls back to 'office' on a bad/absent bundle).
       const theme = await loadTheme(officeTheme);
       await app.init({
+        autoStart: false,
         background: hexNum(theme.palette.background),
         antialias: false,
         roundPixels: true,
@@ -1339,47 +1365,65 @@ export function OfficeFloor() {
       const taskBoardPoll = setInterval(() => { void pollTaskBoard(); }, 5000);
       (app as any).__taskBoardPoll = taskBoardPoll;
 
+      // Loading a sprite is asynchronous; claim visual ownership before awaiting
+      // frames so overlapping roster updates cannot reserve multiple desks.
+      const pendingCharacters = new Map<string, object>();
       const addCharacter = async (agent: Agent) => {
-        const charName = theme.cast.byName[agent.character] ? agent.character : theme.cast.defaultCharacter;
-        const member = theme.cast.byName[charName];
-        const seatIndex = claimSeat(agent);
-        const seatTile: Tile = (seatIndex != null ? seatTiles[seatIndex] : undefined)
-          ?? mapRenderer.getSpawnPoint('entrance')
-          ?? { x: 2, y: 2 };
-        const waitTile = waitTiles[(seatIndex ?? 0) % waitTiles.length];
-        const frames = await theme.cast.getFrames(charName);
-        // Bail if the agent was removed (or scene torn down) while loading.
-        if (mountIdRef.current !== mountId) return;
-        if (!useStore.getState().agents.some((a) => a.id === agent.id)) {
-          if (seatIndex != null) seatClaims.delete(seatIndex);
-          return;
+        if (runtimes.has(agent.id) || pendingCharacters.has(agent.id)) return;
+        const claim = {};
+        pendingCharacters.set(agent.id, claim);
+        let seatIndex: number | null = null;
+        let rt: Runtime | undefined;
+        let mounted = false;
+        try {
+          const charName = theme.cast.byName[agent.character] ? agent.character : theme.cast.defaultCharacter;
+          const member = theme.cast.byName[charName];
+          seatIndex = claimSeat(agent);
+          const seatTile: Tile = (seatIndex != null ? seatTiles[seatIndex] : undefined)
+            ?? mapRenderer.getSpawnPoint('entrance')
+            ?? { x: 2, y: 2 };
+          const waitTile = waitTiles[(seatIndex ?? 0) % waitTiles.length];
+          const frames = await theme.cast.getFrames(charName);
+          // Bail if the agent was removed (or scene torn down) while loading.
+          if (mountIdRef.current !== mountId || pendingCharacters.get(agent.id) !== claim) return;
+          const liveAgent = useStore.getState().agents.find((a) => a.id === agent.id);
+          if (!liveAgent) return;
+          const character = new Character({
+            agentId: agent.id,
+            mapRenderer,
+            frames,
+            seatTile,
+            seatDirection: facingForSeat(seatTile),
+            spawnTile: entrance, // walk in from the office door
+            glowColor: hexNum(colors.accent[liveAgent.accent]) ?? hexToNumber(member.shirt),
+            onClick: (id) => useStore.getState().select(id),
+          });
+          rt = { character, seatIndex, waitTile, charName };
+          character.show(charLayer);
+          // Standard desks paint the 2×2 PC monitor two rows above the seat.
+          // Give these a screen overlay and a cup spot beside the monitor.
+          if (mapRenderer.gidAt('furniture-above', seatTile.x, seatTile.y - 2) === theme.monitor.offTopLeftGid) {
+            const top = { x: seatTile.x, y: seatTile.y - 2 };
+            rt.screen = new DeskScreen(mapRenderer, top, theme.monitor);
+            charLayer.addChild(rt.screen.container);
+            character.setCupSpot({ x: top.x * mapRenderer.tileSize + 18, y: top.y * mapRenderer.tileSize + 23 });
+          }
+          runtimes.set(agent.id, rt);
+          applyState(liveAgent, rt, true);
+          mounted = true;
+        } catch (error) {
+          console.warn('[OfficeFloor] could not create agent sprite', agent.id, error);
+        } finally {
+          if (pendingCharacters.get(agent.id) === claim) pendingCharacters.delete(agent.id);
+          if (!mounted) {
+            if (seatIndex != null) seatClaims.delete(seatIndex);
+            if (rt) {
+              if (runtimes.get(agent.id) === rt) runtimes.delete(agent.id);
+              rt.screen?.destroy();
+              rt.character.destroy();
+            }
+          }
         }
-        const character = new Character({
-          agentId: agent.id,
-          mapRenderer,
-          frames,
-          seatTile,
-          seatDirection: facingForSeat(seatTile),
-          spawnTile: entrance, // walk in from the office door
-          glowColor: hexNum(colors.accent[agent.accent]) ?? hexToNumber(member.shirt),
-          onClick: (id) => useStore.getState().select(id),
-        });
-        character.show(charLayer);
-        const rt: Runtime = { character, seatIndex, waitTile, charName };
-        // Standard desks paint the 2×2 PC monitor two rows above the seat —
-        // give those a DeskScreen (lights up while seated) and a cup spot
-        // beside the monitor, exactly where the tileset's baked-in mug used
-        // to sit before we cleared it (desks start clean now; cups only exist
-        // where an agent actually carried one).
-        if (mapRenderer.gidAt('furniture-above', seatTile.x, seatTile.y - 2) === theme.monitor.offTopLeftGid) {
-          const top = { x: seatTile.x, y: seatTile.y - 2 };
-          rt.screen = new DeskScreen(mapRenderer, top, theme.monitor);
-          charLayer.addChild(rt.screen.container);
-          const ts2 = mapRenderer.tileSize;
-          character.setCupSpot({ x: top.x * ts2 + 18, y: top.y * ts2 + 23 });
-        }
-        runtimes.set(agent.id, rt);
-        applyState(agent, rt, true);
       };
 
       const removeCharacter = (id: string) => {
@@ -1422,7 +1466,7 @@ export function OfficeFloor() {
         const wasBusy = rt.prevStatus === 'working' || rt.prevStatus === 'thinking' || rt.prevStatus === 'compacting';
         const isBusy = agent.status === 'working' || agent.status === 'thinking' || agent.status === 'compacting';
         if (isBusy && !wasBusy) rt.busySince = Date.now();
-        const finishedWork = !force && !agent.isGod
+        const finishedWork = ambientOfficeMotionEnabled() && !force && !agent.isGod
           && wasBusy && (agent.status === 'idle' || agent.status === 'success')
           && rt.busySince !== undefined && Date.now() - rt.busySince >= CHEER_MIN_BUSY_MS;
         if (!isBusy) rt.busySince = undefined;
@@ -1536,6 +1580,11 @@ export function OfficeFloor() {
       const syncAgents = () => {
         const { agents } = useStore.getState();
         const present = new Set(agents.map((a) => a.id));
+        for (const id of pendingCharacters.keys()) {
+          // Re-adding the same id gets a new claim. The old promise may finish,
+          // but cannot attach a ghost sprite or clear the replacement's claim.
+          if (!present.has(id)) pendingCharacters.delete(id);
+        }
         for (const id of Array.from(runtimes.keys())) {
           if (!present.has(id)) removeCharacter(id);
         }
@@ -1548,9 +1597,34 @@ export function OfficeFloor() {
 
       syncAgents();
 
+      const nativeLayer = nativeFloorLayer({
+        claimSeat: () => {
+          for (let i = 1; i < seatTiles.length; i++) {
+            if (!seatClaims.has(i)) { seatClaims.add(i); return i; }
+          }
+          return null;
+        },
+        releaseSeat: seat => { seatClaims.delete(seat); },
+        count: setNativeCount,
+        create: async (actor, seat) => {
+          const roleCast = { conductor: 'michael', implementer: 'jim', critic: 'oscar', repairer: 'meredith' };
+          const name = theme.cast.byName[roleCast[actor.role]] ? roleCast[actor.role] : theme.cast.defaultCharacter;
+          const frames = await theme.cast.getFrames(name);
+          if (mountIdRef.current !== mountId) throw Error('Floor replaced while loading native actor');
+          const character = new Character({ agentId: `gauntlet:${actor.id}`, mapRenderer, frames,
+            seatTile: seatTiles[seat], seatDirection: facingForSeat(seatTiles[seat]),
+            // Restored observations start at their desk, never replay an invented arrival.
+            glowColor: 0x528b7a, onClick: () => nativeProps.current.onInspectRun?.(actor.runId) });
+          character.show(charLayer);
+          return character;
+        }
+      });
+      nativeLayerRef.current = nativeLayer;
+      nativeLayer.sync(nativeProps.current.nativeActors);
+
       let lastSelected: string | null = useStore.getState().selectedId;
       const unsubscribe = useStore.subscribe((s, prev) => {
-        if (s.agents !== prev.agents) syncAgents();
+        if (s.agents !== prev.agents) { syncAgents(); nativeLayer.sync(nativeProps.current.nativeActors); }
         if (s.selectedId !== lastSelected) {
           lastSelected = s.selectedId;
           const rt = s.selectedId ? runtimes.get(s.selectedId) : undefined;
@@ -1608,8 +1682,8 @@ export function OfficeFloor() {
       // overlapping ones upward. Computed from each bubble's BASE rect (ignoring
       // the lift already applied) so the result is stable frame-to-frame.
       const resolveBubbleOverlaps = () => {
-        const items: Array<{ rt: Runtime; x: number; y: number; w: number; h: number }> = [];
-        for (const rt of runtimes.values()) {
+        const items: Array<{ rt: { character: Pick<Character, 'setThoughtLift'> }; x: number; y: number; w: number; h: number }> = [];
+        for (const rt of [...runtimes.values(), ...nativeLayer.characters().map(character => ({ character }))]) {
           const lay = rt.character.getThoughtLayout();
           if (lay) items.push({ rt, ...lay });
         }
@@ -1648,11 +1722,14 @@ export function OfficeFloor() {
           rt.character.setBubbleZoom(zoom);
           rt.character.update(dt);
         }
-        updateCafeteria(dt);
-        updateCoffeeRuns(dt);
-        updateErrands(dt);
-        updateBossAura(dt);
-        updateDeskLife(dt);
+        nativeLayer.update(dt, zoom);
+        if (ambientOfficeMotionEnabled()) {
+          updateCafeteria(dt);
+          updateCoffeeRuns(dt);
+          updateErrands(dt);
+          updateBossAura(dt);
+          updateDeskLife(dt);
+        }
         updateBoardMoves(dt);
         resolveBubbleOverlaps();
         for (let i = envelopes.length - 1; i >= 0; i--) {
@@ -1663,6 +1740,7 @@ export function OfficeFloor() {
         }
       };
       app.ticker.add(onTick);
+      visibility.attach(app.ticker);
 
       const resize = new ResizeObserver((entries) => {
         for (const e of entries) {
@@ -1689,6 +1767,10 @@ export function OfficeFloor() {
 
     return () => {
       mountIdRef.current++;
+      visibility.dispose();
+      if (visibilityRef.current === visibility) visibilityRef.current = null;
+      nativeLayerRef.current?.dispose();
+      nativeLayerRef.current = null;
       const a = appRef.current;
       if (a) {
         (a as any).__glRecovery?.();
@@ -1727,6 +1809,11 @@ export function OfficeFloor() {
       }}>
         {branchProfile.name} · {branchVisual.label}
       </div>
+      {nativeActors.length > 0 && <div role="status" style={{ position: 'absolute', bottom: 10, left: 10,
+        padding: '6px 9px', background: 'var(--cth-paper-100)', color: 'var(--cth-ink-900)', fontSize: 12 }}>
+        Gauntlet · {nativeCount.seated} at desks{nativeCount.pending > 0 ? ` · ${nativeCount.pending} loading` : ''}
+        {nativeCount.unseated > 0 ? ` · ${nativeCount.unseated} off floor (see Runs)` : ''}
+      </div>}
     </div>
   );
 }

@@ -9,6 +9,7 @@
  * with obvious secret material are blocked before egress.
  */
 
+import { apiInferenceError } from '../shared/billingPolicy';
 export const DEFAULT_GROQ_CHAT_MODEL = 'llama-3.1-8b-instant';
 
 const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -38,6 +39,8 @@ export interface GroqChatResult {
 }
 
 export async function groqChat(opts: GroqChatOptions): Promise<GroqChatResult> {
+  const billingError = apiInferenceError();
+  if (billingError) return { ok: false, error: billingError };
   if (!opts.apiKey) return { ok: false, error: 'missing Groq API key' };
   if (!Array.isArray(opts.messages) || opts.messages.length === 0) return { ok: false, error: 'missing messages' };
 

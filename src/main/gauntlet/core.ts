@@ -54,6 +54,7 @@ export function createGauntletRun(input: {
     contract: null,
     status: 'orienting',
     repairRound: 0,
+    pendingRepairRetry: null,
     infrastructureRetries: 0,
     providers,
     limits,
@@ -129,11 +130,39 @@ function normalizeChecks(checks: FrozenRunContractInput['checks']): FrozenRunCon
 }
 
 export function applyGauntletEvent(run: GauntletRun, event: GauntletEvent): GauntletRun {
+  if (event.type === 'CANDIDATE_HANDOFF_RECORDED') {
+    if (run.status !== 'passed') throw new GauntletInvariantError('only passed candidates have a handoff disposition');
+    assertFullSha(event.artifactSha);
+    if (event.artifactSha !== run.currentArtifactSha) throw new GauntletInvariantError('candidate changed; reload exact artifact before recording disposition');
+    if (typeof event.reviewed !== 'boolean' || !Number.isSafeInteger(event.at) || event.at < run.updatedAt) throw new GauntletInvariantError('invalid candidate disposition');
+    const note = bounded(event.note, 4000, 'candidate disposition note').trim();
+    if (!note || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(note)) throw new GauntletInvariantError('candidate disposition note is required and must be plain text');
+    return { ...run, candidateHandoff: {artifactSha:event.artifactSha,reviewed:event.reviewed,note,at:event.at},
+      version:run.version+1,updatedAt:event.at };
+  }
+  if (event.type === 'OPERATOR_REVIEW_RECORDED') {
+    if (!TERMINAL.has(run.status) || (!['human_required','infrastructure_failure'].includes(run.status) && !run.runtimeAttention)) throw new GauntletInvariantError('only stopped attention runs can be reviewed');
+    if ((event.runtimeSequence ?? 0) !== (run.runtimeAttention?.sequence ?? 0)) throw new GauntletInvariantError('runtime evidence changed; reload before reviewing');
+    if (typeof event.reviewed !== 'boolean' || !Number.isSafeInteger(event.at) || event.at < run.updatedAt) throw new GauntletInvariantError('invalid operator review');
+    const note = bounded(event.note, 4000, 'review note').trim();
+    if (!note) throw new GauntletInvariantError('review note is required');
+    return { ...run, operatorReview: {reviewed:event.reviewed,note,at:event.at,
+      ...(event.runtimeSequence ? {runtimeSequence:event.runtimeSequence} : {})}, version:run.version+1,updatedAt:event.at };
+  }
   if (TERMINAL.has(run.status)) throw new GauntletInvariantError(`run is terminal: ${run.status}`);
   if (event.at < run.createdAt) throw new GauntletInvariantError('event predates run creation');
 
-  const next: GauntletRun = { ...run, version: run.version + 1, updatedAt: event.at };
+  // A retry entitlement is one-use. Only a retryable Repairer failure creates
+  // one; every subsequent legal transition consumes or clears it.
+  const next: GauntletRun = { ...run, pendingRepairRetry: null, version: run.version + 1, updatedAt: event.at };
   switch (event.type) {
+    case 'CONDUCTOR_PREPARED':
+      requireStatus(run, 'orienting');
+      if (run.conductorLaunchId) throw new GauntletInvariantError('run already has a Conductor launch');
+      if (!event.launchId) throw new GauntletInvariantError('Conductor launch identity is required');
+      next.conductorLaunchId = event.launchId;
+      return next;
+
     case 'BAR_FROZEN':
       requireStatus(run, 'orienting');
       if (run.contract) throw new GauntletInvariantError('the run contract is already frozen');
@@ -209,8 +238,17 @@ export function applyGauntletEvent(run: GauntletRun, event: GauntletEvent): Gaun
     case 'REPAIR_LAUNCHED':
       requireStatus(run, 'needs_repair');
       requireExpected(run, event.expectedSha, run.currentArtifactSha);
-      if (run.repairRound >= run.limits.maxRepairRounds) throw new GauntletInvariantError('repair limit reached');
-      next.repairRound = run.repairRound + 1;
+      if (run.pendingRepairRetry) {
+        const retry = run.pendingRepairRetry;
+        requireExpected(run, retry.artifactSha, run.currentArtifactSha);
+        if (retry.round !== run.repairRound || retry.round < 1 || retry.round > run.limits.maxRepairRounds || run.infrastructureRetries < 1) {
+          throw new GauntletInvariantError('invalid repair retry accounting');
+        }
+        if (event.launchId === retry.launchId) throw new GauntletInvariantError('repair retry requires a fresh launch');
+      } else {
+        if (run.repairRound >= run.limits.maxRepairRounds) throw new GauntletInvariantError('repair limit reached');
+        next.repairRound = run.repairRound + 1;
+      }
       next.currentLaunchId = event.launchId;
       next.status = 'repair_in_flight';
       return next;
@@ -226,6 +264,10 @@ export function applyGauntletEvent(run: GauntletRun, event: GauntletEvent): Gaun
         next.infrastructureRetries = run.infrastructureRetries + 1;
         next.currentLaunchId = null;
         next.status = retryStatus(run.status);
+        if (run.status === 'repair_in_flight') {
+          if (!run.currentLaunchId || !run.currentArtifactSha) throw new GauntletInvariantError('repair retry is missing its launch or artifact');
+          next.pendingRepairRetry = { launchId: run.currentLaunchId, artifactSha: run.currentArtifactSha, round: run.repairRound };
+        }
       } else {
         next.status = 'infrastructure_failure';
         next.stopReason = bounded(event.reason, 10_000, 'failure reason');

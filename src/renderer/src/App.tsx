@@ -1,13 +1,18 @@
-import { useEffect, useState } from 'react';
-import { useStore, selectedAgent } from '@/store/store';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useStore, selectedAgent, rosterRecoveryNotice } from '@/store/store';
 import { startMockLoop, stopMockLoop } from '@/store/mockEvents';
 import type { HarnessConfig } from '@/store/config';
 import { DEFAULT_ORG_TRIGGER } from '@shared/triggers';
+import { SUBSCRIPTION_RUN_NOTICE } from '@shared/billingPolicy';
 import { OfficeFloor } from '@/scene/office/OfficeFloor';
 import { useHive } from '@/hooks/useHive';
 import { MemoryPanel } from '@/components/MemoryPanel';
 import { AgentDetailPanel } from '@/components/AgentDetailPanel';
 import { AgentStrip } from '@/components/AgentStrip';
+import { GauntletRunsTab } from '@/components/GauntletRunsTab';
+import { OfficeRunsPanel } from '@/components/OfficeRunsPanel';
+import { useOfficeRuns } from '@/gauntlet/useOfficeRuns';
+import { needsOperator } from '@/gauntlet/runViewState';
 import { AddAgentModal } from '@/components/AddAgentModal';
 import { MichaelBooting } from '@/components/MichaelBooting';
 import { OnboardingWizard } from '@/components/OnboardingWizard';
@@ -64,6 +69,16 @@ export function App() {
     return false;
   });
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workspaceView, setWorkspaceView] = useState<'office' | 'runs'>('office');
+  const officeRuns = useOfficeRuns();
+  // Unknown restart exits remain decision evidence, not occupied/live desks.
+  const nativeActors = useMemo(() => officeRuns.rows.flatMap(row => row.actors).filter(actor => actor.mode !== 'unknown'), [officeRuns.rows]);
+  const [inspectRun, setInspectRun] = useState<{ id: string; sequence: number } | null>(null);
+  const openRun = useCallback((id?: string) => {
+    setRunsOpened(true); setWorkspaceView('runs');
+    if (id) setInspectRun(previous => ({ id, sequence: (previous?.sequence ?? 0) + 1 }));
+  }, []);
+  const [runsOpened, setRunsOpened] = useState(false);
   /** Which tab Settings opens on. Set by a `cth:open-settings` deep link, reset
    *  to undefined (→ General) whenever the modal is opened the normal way. */
   const [settingsSection, setSettingsSection] = useState<SettingsSection | undefined>(undefined);
@@ -232,7 +247,11 @@ export function App() {
 
   if (!config.onboardingComplete) {
     // Just-onboarded users go straight into the hive they set up — skip the picker.
-    return <OnboardingWizard onComplete={(next) => { setConfig(next); setHiveOpened(true); }} />;
+    return <OnboardingWizard onComplete={() => {
+      // Rebuild the store from main's newly established home-bound boot snapshot.
+      try { window.localStorage.setItem('cth.skipHivePickerOnce', '1'); } catch { /* picker remains available */ }
+      window.location.reload();
+    }} />;
   }
 
   // Launch-time hive picker: on reopen, let the user open their current hive,
@@ -254,6 +273,10 @@ export function App() {
       {/* v0.3.4: background-update toast ("restart to update"); renders null until
           main's updater pushes a status. */}
       <UpdateToast />
+      {rosterRecoveryNotice ? <div role="status" style={{ padding: '8px 16px', flexShrink: 0,
+        color: 'var(--cth-ink-900)', background: 'var(--cth-cream-200)', borderBottom: '1px solid var(--cth-ink-300)', fontSize: 13 }}>
+        {rosterRecoveryNotice}
+      </div> : null}
       {/* Title bar */}
       <div
         className="cth-titlebar-drag"
@@ -277,12 +300,27 @@ export function App() {
         {/* v0.3.7: the version is no longer inert text — it doubles as the
             update control (check / download / restart to update). */}
         <UpdateBadge />
+        <nav aria-label="Workspace views" className="cth-titlebar-nodrag" style={{ display: 'flex', gap: 4 }}>
+          {(['office', 'runs'] as const).map(view => <button
+            key={view}
+            type="button"
+            aria-pressed={workspaceView === view}
+            onClick={() => { setWorkspaceView(view); if (view === 'runs') setRunsOpened(true); }}
+            style={{ padding: '5px 10px', cursor: 'pointer', border: '1px solid var(--cth-ink-300)',
+              fontFamily: 'var(--cth-font-ui)', fontSize: 13,
+              background: workspaceView === view ? 'var(--cth-ink-900)' : 'var(--cth-cream-100)',
+              color: workspaceView === view ? 'var(--cth-cream-50)' : 'var(--cth-ink-900)' }}
+          >{view === 'office' ? 'Office' : `Runs${officeRuns.rows.length ? ` · ${officeRuns.rows.length}` : ''}`}
+            {view === 'runs' && officeRuns.rows.some(row => needsOperator(row.run)) &&
+              <span style={{ marginLeft: 6 }}>· {officeRuns.rows.filter(row => needsOperator(row.run)).length} need you</span>}
+          </button>)}
+        </nav>
         <span style={{
           fontFamily: 'var(--cth-font-ui)',
           fontSize: 13,
           color: 'var(--cth-ink-500)'
         }}>
-          {config.autoMode ? 'auto mode on' : 'auto mode off'}
+          subscription-only · macOS pilot
         </span>
         {/* v0.3.4: theme + fullscreen live HERE (top right), not buried in the
             terminal header — and the theme darkens the whole app, terminals
@@ -354,17 +392,20 @@ export function App() {
         </button>
       </div>
 
+      <div role="status" style={{ padding: '8px 16px', fontSize: 13, lineHeight: 1.5, background: '#fff0cf', color: '#392e23', borderBottom: '1px solid #bca77d' }}>
+        {SUBSCRIPTION_RUN_NOTICE}
+      </div>
       <div style={{
         flex: 1, minHeight: 0,
-        display: 'flex',
+        display: workspaceView === 'office' ? 'flex' : 'none',
         padding: 16,
         gap: 0
       }}>
         <div style={{ flex: 1, minHeight: 0, minWidth: 0, position: 'relative' }}>
-          <OfficeFloor />
+          <OfficeFloor nativeActors={nativeActors} onInspectRun={openRun} visible={workspaceView === 'office'} />
           <MemoryPanel />
-          {agentCount === 0 && godStatus === 'booting' && <MichaelBooting />}
-          {agentCount === 0 && godStatus !== 'booting' && (
+          {agentCount === 0 && officeRuns.rows.length === 0 && !officeRuns.loading && !officeRuns.error && godStatus === 'booting' && <MichaelBooting />}
+          {agentCount === 0 && officeRuns.rows.length === 0 && !officeRuns.loading && !officeRuns.error && godStatus !== 'booting' && (
             <div style={{
               position: 'absolute', inset: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -374,7 +415,7 @@ export function App() {
                 <PixelPanel variant="dialog" title="EMPTY FLOOR" noPadding>
                   <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <p style={{ margin: 0, fontSize: 13, lineHeight: '20px' }}>
-                      No agents on the floor yet. Spawn one to see real claude output stream in here.
+                      No agents running. Startup is paused while subscription-only safeguards are completed.
                     </p>
                     <PixelButton variant="primary" size="md" onClick={() => setAddAgentOpen(true)}>
                       <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
@@ -400,6 +441,8 @@ export function App() {
         }}>
           {agent ? (
             <AgentDetailPanel agent={agent} />
+          ) : officeRuns.rows.length > 0 || officeRuns.loading || officeRuns.error ? (
+            <OfficeRunsPanel {...officeRuns} onInspect={openRun} />
           ) : godStatus === 'booting' ? (
             <PixelPanel variant="default" noPadding style={{
               padding: 16, height: '100%',
@@ -426,8 +469,8 @@ export function App() {
                 color: 'var(--cth-ink-500)'
               }}>NO AGENT SELECTED</div>
               <p style={{ margin: 0, fontSize: 13, textAlign: 'center', color: 'var(--cth-ink-700)' }}>
-                Spawn an agent from the strip below.<br />
-                The terminal and command bar will land here.
+                Agent terminals appear here when running.<br />
+                Startup is currently paused by the subscription safety hold.
               </p>
               <PixelButton variant="secondary" size="md" onClick={() => setAddAgentOpen(true)}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
@@ -439,7 +482,13 @@ export function App() {
         </div>
       </div>
 
-      <AgentStrip config={config} />
+      {runsOpened && <section aria-label="Gauntlet runs workspace" style={{
+        flex: 1, minHeight: 0, margin: 16, overflow: 'hidden',
+        display: workspaceView === 'runs' ? 'block' : 'none',
+        border: '1px solid var(--cth-ink-300)'
+      }}><GauntletRunsTab inspectRun={inspectRun} /></section>}
+
+      <div style={{ display: workspaceView === 'office' ? 'block' : 'none' }}><AgentStrip config={config} /></div>
 
       {addAgentOpen && (
         <AddAgentModal

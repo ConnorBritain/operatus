@@ -240,8 +240,8 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   }, [addAgentOpen, setFullscreen]);
 
   if (!agent || !agent.ptyId) {
-    // Bail out — no real agent to show
-    setFullscreen(null);
+    // Store transitions own re-homing. Never mutate another component's store
+    // while rendering an intermediate or stale roster snapshot.
     return null;
   }
 
@@ -251,7 +251,7 @@ export function FullscreenTerminal({ config }: FullscreenTerminalProps) {
   // mis-click waiting to happen. Exiting fullscreen is likewise already covered
   // twice over (Esc, and the terminal toolbar's own fullscreen toggle).
   return (
-    <div style={{
+    <div data-focused-agent={agent.id} aria-label={`Focused terminal: ${agent.name}`} style={{
       position: 'fixed', inset: 0,
       background: 'var(--cth-cream-100)',
       zIndex: 250,

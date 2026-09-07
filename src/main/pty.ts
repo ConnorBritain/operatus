@@ -2,10 +2,11 @@ import * as pty from 'node-pty';
 import type { WebContents } from 'electron';
 import { existsSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { ensureKilled } from './procKill';
 import { expandTilde } from './fs';
-import { captureFromLoginShell, userShellPath } from './shellEnv';
+import { userShellPath } from './shellEnv';
+import { resolveExecutable } from './commandResolution';
+import { minimalHostEnvironment, subscriptionLaunchError, withoutInferenceCredentials } from '../shared/billingPolicy';
 
 /** APPEND the hive's bundled-node dir (`<HIVE_ROOT>/bin/runtime`, which holds a
  *  shim literally named `node`) to a child's PATH.
@@ -161,14 +162,14 @@ export class PtyManager {
   /** Whether an engine CLI is actually installed/locatable on this machine.
    *  Used PRE-SPAWN by the missing-CLI auto-install path: a bare `claude`/`codex`
    *  that resolveCommand can't locate would otherwise be spawned and die with
-   *  "process exited (code 1)". Reuses the exact same `which`/`where` +
+   *  "process exited (code 1)". Reuses the exact same filesystem lookup +
    *  candidate-dir logic as spawn(), so detection and spawning never disagree. */
   isCommandAvailable(command: string): boolean {
     return this.resolveCommand(command).found;
   }
 
   /** The absolute path a bare command resolves to for THIS user, or null when it
-   *  isn't installed. Same resolution + cache as spawn(), so a caller that probes
+   *  isn't installed. Same resolution as spawn(), so a caller that probes
    *  a binary (e.g. `node --version`, to decide whether it is too old to keep)
    *  inspects exactly the executable an agent would have run. */
   commandPath(command: string): string | null {
@@ -176,93 +177,15 @@ export class PtyManager {
     return r.found ? r.path : null;
   }
 
-  /** Session cache of SUCCESSFUL command resolutions. Each miss costs a full
-   *  interactive-shell launch (`$SHELL -ilc which …` sources the user's whole
-   *  zshrc — nvm/asdf init is routinely ~1s) run synchronously on the main
-   *  process, and every agent spawn used to pay it TWICE (pre-check + spawn) —
-   *  a multi-second all-windows freeze per spawn, ×N on a team restore.
-   *  Negatives are deliberately NOT cached: the missing-CLI auto-install path
-   *  must see a just-installed binary on its re-check. */
-  private readonly resolvedCommands = new Map<string, { path: string; found: boolean }>();
-
-  /** Resolve a bare command (e.g. 'claude') against the user's PATH +
-   *  common install locations. Needed because Electron's spawn env on
-   *  macOS launches without the user's interactive shell PATH. Returns the
-   *  best path AND whether an existing executable was actually located (`found`):
-   *  when nothing is found, `path` falls back to the bare command (spawn would
-   *  ENOENT) and `found` is false — the signal the missing-CLI path keys on. */
+  /** One filesystem-only resolver shared with preflight and hidden callers.
+   * Re-resolve each time so PATH, symlinks and updates cannot leave stale cache hits. */
   private resolveCommand(command: string): { path: string; found: boolean } {
-    const cached = this.resolvedCommands.get(command);
-    // Trust a positive hit only while the binary still exists (uninstall/update
-    // between spawns must re-probe rather than hand out a dead path).
-    if (cached && existsSync(cached.path)) return cached;
-    const res = this.resolveCommandUncached(command);
-    if (res.found) this.resolvedCommands.set(command, res);
-    else this.resolvedCommands.delete(command);
-    return res;
-  }
-
-  private resolveCommandUncached(command: string): { path: string; found: boolean } {
-    // Already an absolute/relative path (Unix `/` or Windows `\`) — pass through;
-    // `found` reflects whether that path actually exists on disk.
-    if (command.includes('/') || command.includes('\\')) return { path: command, found: existsSync(command) };
-    if (process.platform === 'win32') {
-      // `where` is the Windows equivalent of `which`; runs via cmd.exe (shell:true).
-      // It can return MULTIPLE matches in PATH order; the first is often an
-      // EXTENSIONLESS shim (bare `claude`). Skip extensionless hits and take
-      // the first PATHEXT-eligible one (.CMD/.BAT/.EXE/…). NOTE: even .CMD/.BAT
-      // files are not directly spawnable by node-pty's CreateProcess (error 193);
-      // spawn() routes them through `cmd.exe /c` (see below).
-      try {
-        const res = spawnSync('where', [command], { encoding: 'utf8', timeout: 3000, shell: true });
-        const lines = (res.stdout ?? '').trim().split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        const pathExts = (process.env.PATHEXT ?? '.COM;.EXE;.BAT;.CMD')
-          .split(';').map((e) => e.trim().toUpperCase()).filter(Boolean);
-        const isExecutable = (p: string): boolean => {
-          const dot = p.lastIndexOf('.');
-          const sep = Math.max(p.lastIndexOf('\\'), p.lastIndexOf('/'));
-          if (dot <= sep) return false; // no extension on the basename
-          return pathExts.includes(p.slice(dot).toUpperCase());
-        };
-        const exe = lines.find((p) => isExecutable(p) && existsSync(p));
-        if (exe) return { path: exe, found: true };
-      } catch { /* fall through */ }
-      // Common Windows install locations (npm global = %APPDATA%\npm\<cmd>.cmd).
-      const appData = process.env.APPDATA ?? '';
-      const localAppData = process.env.LOCALAPPDATA ?? '';
-      const home = process.env.USERPROFILE ?? process.env.HOME ?? '';
-      const winCandidates = [
-        `${appData}\\npm\\${command}.cmd`,
-        `${appData}\\npm\\${command}`,
-        `${localAppData}\\Programs\\claude\\${command}.exe`,
-        `${home}\\.claude\\local\\${command}.cmd`,
-        `${home}\\.claude\\local\\${command}`
-      ];
-      for (const c of winCandidates) if (existsSync(c)) return { path: c, found: true };
-      // Last resort — let node-pty try; will fail with ENOENT if missing.
-      return { path: command, found: false };
-    }
-    // macOS / Linux — `which` against an interactive shell so we pick up nvm/asdf/brew paths.
-    // Fenced capture (shellEnv): rc-file chatter can't poison the which output.
-    const which = captureFromLoginShell(`which ${command}`);
-    if (which) {
-      const path = which.trim().split('\n').map((l) => l.trim()).filter(Boolean).pop();
-      if (path && existsSync(path)) return { path, found: true };
-    }
-    // Common explicit locations
-    const candidates = [
-      `/opt/homebrew/bin/${command}`,
-      `/usr/local/bin/${command}`,
-      `${process.env.HOME ?? ''}/.local/bin/${command}`,
-      `${process.env.HOME ?? ''}/.claude/local/${command}`,
-      `${process.env.HOME ?? ''}/.volta/bin/${command}`
-    ];
-    for (const c of candidates) if (existsSync(c)) return { path: c, found: true };
-    // Last resort — let node-pty try; will fail with ENOENT if missing.
-    return { path: command, found: false };
+    return resolveExecutable(command);
   }
 
   spawn(opts: SpawnOptions, owner: WebContents | null = null): { ok: boolean; error?: string } {
+    const billingError = subscriptionLaunchError();
+    if (billingError) return { ok: false, error: billingError };
     if (this.sessions.has(opts.id)) {
       return { ok: false, error: `pty already exists for id ${opts.id}` };
     }
@@ -275,10 +198,8 @@ export class PtyManager {
     }
     const resolved = this.resolveCommand(opts.command).path;
     try {
-      // Build a user-shell PATH so child can resolve subprocess deps. Cached
-      // for the session (shellEnv.userShellPath, fenced against rc-file noise) —
-      // the interactive-shell launch it replaces cost ~1s of main-thread freeze
-      // on EVERY spawn.
+      // Build a PATH from inherited absolute entries and known install dirs.
+      // No login shell or rc file is executed to discover subprocess deps.
       const userPath = withHiveRuntimeFallback(
         process.platform === 'win32' ? (process.env.PATH || '') : userShellPath(),
         opts.env?.HIVE_ROOT
@@ -332,8 +253,8 @@ export class PtyManager {
         cols: opts.cols ?? 100,
         rows: opts.rows ?? 30,
         cwd: opts.cwd,
-        env: {
-          ...process.env,
+        env: withoutInferenceCredentials({
+          ...minimalHostEnvironment(process.env),
           PATH: userPath,
           TERM: 'xterm-256color',
           COLORTERM: 'truecolor',
@@ -341,7 +262,7 @@ export class PtyManager {
           FORCE_COLOR: '1',
           // Per-agent hive identity (AGENT_ID, HIVE_ROOT, …) when provided.
           ...(opts.env ?? {})
-        } as Record<string, string>
+        })
       });
 
       // Capture THIS session object so the proc's callbacks can tell whether the

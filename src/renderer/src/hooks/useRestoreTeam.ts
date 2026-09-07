@@ -1,6 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { useStore, type Agent } from '@/store/store';
 import { buildSpawnCommand, inferAgentProvider, tokenizeCommand, type HarnessConfig } from '@/store/config';
+import { isGauntletWorker } from '@shared/agentLifecycle';
 
 /** "Restore team" — respawn every worker from the previous session.
  *
@@ -98,6 +99,10 @@ export function useRestoreTeam(config?: HarnessConfig | null): RestoreTeamState 
         // abort the others — an unhandled rejection here used to make the
         // entire restore a silent no-op after the first bad agent.
         try {
+          if (isGauntletWorker(a)) {
+            failures.push(`${a.name}: managed by its Gauntlet run, not team restoration`);
+            return null;
+          }
           const provider = inferAgentProvider(a.command, a.provider);
           const command = (a.command ?? '').trim() || (config ? buildSpawnCommand(config, a.model, provider) : '');
           if (!command || !a.cwd) {

@@ -54,20 +54,22 @@ export interface TerminalEntry {
   /** A user-opened slash-command picker (for example Codex `/model`) owns the
    * input line. Queue automation waits until the picker closes. */
   automationBlocked: boolean;
-  /** When the picker latch was set — the block expires, see PICKER_BLOCK_MS. */
+  /** When the picker latch was set, for diagnostics, not automatic expiry. */
   automationBlockedAt: number;
   /** True while the user has unsubmitted text in the live TUI prompt. */
   inputDirty: boolean;
-  inputDirtyAt: number; // when the draft was last typed into; drives staleness expiry
+  inputDirtyAt: number; // last draft keystroke; never authorizes a timeout takeover
+  inputRevision: number;
+  recoveryPending: boolean;
   automationSettleUntil: number;
   /** Our model of the text on the live prompt line. On the ENTRY, not a closure
    * variable: `inputDirty` is derived from it, so anything that clears the
    * prompt (Ctrl-U, a respawn reset) has to clear both or the next keystroke
    * resurrects the deleted text as a phantom draft. */
   lineBuf: string;
-  /** Bumped every time this pty is respawned under the same id. Late events from
-   * the OLD process carry the generation they were registered under, so they can
-   * be recognised and dropped instead of corrupting the replacement. */
+  /** Renderer lifecycle epoch. Late recovery receipts cannot release input in
+   * a terminal reset or relaunched under the same PTY id. Main separately owns
+   * actual process identity and suppression of old process-exit events. */
   generation: number;
   webgl?: WebglAddon;
 }
@@ -133,6 +135,8 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
     automationBlockedAt: 0,
     inputDirty: false,
     inputDirtyAt: 0,
+    inputRevision: 0,
+    recoveryPending: false,
     automationSettleUntil: 0,
     lineBuf: '',
     generation: 0
@@ -168,6 +172,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // the install banner + "process exited" line — so the relaunched CLI's TUI paints
   // onto a clean, typeable grid. Mirrors resetTerminal but works on this closure.
   entry.unsub.push(window.cth.onPtyRelaunch(ptyId, () => {
+    entry.generation++;
     entry.exited = false;
     try { term.reset(); } catch { /* not yet open */ }
   }));
@@ -217,6 +222,7 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
   // path resets it too.
   term.onData((data) => {
     if (entry.exited) return;
+    entry.inputRevision++;
     window.cth.writePty(ptyId, data);
     // A lone Escape or Ctrl-C closes interactive pickers. Arrow-key escape
     // sequences must NOT clear the block while the user navigates a picker.
@@ -257,8 +263,8 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
       }
     }
     entry.inputDirty = entry.lineBuf.length > 0;
-    // Re-stamped on every keystroke, so the staleness clock measures time since
-    // the user last touched the draft — not since they started it.
+    // Diagnostic age measures the last keystroke, not permission for automation
+    // to take over an unfinished draft.
     if (entry.inputDirty) entry.inputDirtyAt = Date.now();
   });
 
@@ -271,71 +277,22 @@ export function acquireTerminal(ptyId: string, theme?: ThemeMap, fontSize = 14):
 export function isTerminalAutomationSafe(ptyId: string, now = Date.now()): boolean {
   const entry = pool.get(ptyId);
   if (!entry) return true;
-  return canAutomateTerminal(automationStateOf(entry, now), now);
+  return canAutomateTerminal(automationStateOf(entry), now);
 }
 
-/** Characters a TUI paints around its input line that are not the user's text:
- *  the box the prompt sits in and the prompt marker itself. */
-const PROMPT_CHROME = /[─-╿\s>❯$#|]/g;
-
-/** How long after a keystroke the rendered screen is not yet evidence of anything.
- *
- *  `inputDirty` is set the instant a key is pressed, but the character only
- *  reaches xterm's buffer once the PTY echoes it back — a round trip through the
- *  child process. Inside that gap the buffer still shows the OLD line, so a read
- *  of a freshly started draft returns "empty" and would hand the prompt to
- *  automation while the user is mid-word. The screen is only allowed to overrule
- *  the keystroke count once it has had time to catch up. */
-const ECHO_GRACE_MS = 1000;
-
-/** Does the terminal's rendered prompt line actually hold text right now?
- *
- *  `inputDirty` is inferred by counting keystrokes, and that model DRIFTS: a TUI
- *  that swallows keys for its own UI (a menu, a confirm) leaves the count above
- *  zero while the visible prompt is empty. Nothing ever corrected it, so the
- *  queue stayed blocked by a draft that did not exist — the "messages never
- *  arrive" bug. xterm already holds the rendered screen, so read it instead of
- *  trusting the count.
- *
- *  Returns null when the screen is not evidence of anything: the terminal has not
- *  been opened, the row is missing, or the last keystroke is too recent for the
- *  echo to have landed. Deliberately only ever used to CLEAR a phantom, never to
- *  invent a draft: "empty" drops the block, while "has text" or "don't know"
- *  falls back to the keystroke model and keeps it. The asymmetry matters because
- *  the two mistakes do not cost the same — a wrong "empty" hands the prompt to
- *  automation and fuses a message onto what the user is writing, where a wrong
- *  "has text" only parks a queued message until the draft expires. */
-function promptLineHasText(entry: TerminalEntry, now = Date.now()): boolean | null {
-  if (!entry.opened || entry.exited) return null;
-  // Too soon after the last keystroke for the echo to have landed — the buffer
-  // is showing us the past, so it cannot clear anything.
-  if (entry.inputDirtyAt && now - entry.inputDirtyAt < ECHO_GRACE_MS) return null;
-  try {
-    const buf = entry.term.buffer.active;
-    const line = buf.getLine(buf.baseY + buf.cursorY);
-    if (!line) return null;
-    // `true` trims trailing whitespace cells, which a TUI pads its box with.
-    return line.translateToString(true).replace(PROMPT_CHROME, '').length > 0;
-  } catch {
-    return null; // never let a buffer read break delivery
-  }
-}
-
-/** Whether the user has unsubmitted text sitting on this terminal's prompt.
- *  Shares its draft detection with the automation gate, so the "typing" badge
- *  reports the same draft the gate is holding delivery for. It does NOT apply the
- *  staleness expiry the gate does: past STALE_INPUT_MS the gate starts delivering
- *  while this still reports the draft — which is the honest reading, because the
- *  text really is still on the prompt. */
-export function hasTerminalDraft(ptyId: string | undefined, now = Date.now()): boolean {
+/** User-input ownership, not a guess from the current cursor row. A blank row
+ * can be a repaint, multiline prompt, hidden input or an unobserved echo. The
+ * explicit recovery controls handle phantom drafts; automation cannot infer
+ * permission to concatenate instructions from a blank terminal cell. */
+export function hasTerminalDraft(ptyId: string | undefined): boolean {
   if (!ptyId) return false;
   const entry = pool.get(ptyId);
   if (!entry) return false;
-  return entry.inputDirty && promptLineHasText(entry, now) !== false;
+  return entry.inputDirty;
 }
 
 /** `hasTerminalDraft` as React state. The flag lives on a mutable pool entry
- *  that no component subscribes to, so poll it — cheap (one buffer row read) and
+ *  that no component subscribes to, so poll the local flag and
  *  a second of lag on a badge is invisible. */
 export function useHasTerminalDraft(ptyId: string | undefined): boolean {
   const [dirty, setDirty] = useState(() => hasTerminalDraft(ptyId));
@@ -351,11 +308,11 @@ export function useHasTerminalDraft(ptyId: string | undefined): boolean {
   return dirty;
 }
 
-function automationStateOf(entry: TerminalEntry, now = Date.now()) {
-  // The screen wins over the keystroke count, but only when it says "empty".
-  const inputDirty = entry.inputDirty && promptLineHasText(entry, now) !== false;
+function automationStateOf(entry: TerminalEntry) {
+  const inputDirty = entry.inputDirty;
   return {
     exited: entry.exited,
+    recoveryPending: entry.recoveryPending,
     pickerOpen: entry.automationBlocked,
     pickerOpenedAt: entry.automationBlocked ? entry.automationBlockedAt : undefined,
     inputDirty,
@@ -380,46 +337,50 @@ export function terminalAutomationBlockFor(
   if (!ptyId) return null;
   const entry = pool.get(ptyId);
   if (!entry) return null;
-  return terminalAutomationBlock(automationStateOf(entry, now), now);
+  return terminalAutomationBlock(automationStateOf(entry), now);
 }
 
-/** Wipe the TUI prompt's current line and re-arm automation. Ctrl-U is the
- * readline kill-to-start binding every supported CLI's input honors. */
-export function clearTerminalDraft(ptyId: string): string {
+export type PromptRecoveryResult = { ok: boolean; recoveredText: string; error?: string };
+
+/** Explicit operator recovery only. A successful write acknowledges transport,
+ * not that an arbitrary provider TUI has interpreted Ctrl-U/Escape as intended. */
+async function recoverTerminalInput(ptyId: string, kind: 'draft' | 'picker'): Promise<PromptRecoveryResult> {
   const entry = pool.get(ptyId);
-  if (!entry) return '';
-  // Hand the text back so the caller can park it somewhere the user can find it
-  // again. Ctrl-U is not undoable in a TUI, so silently discarding it was data
-  // loss every time an abandoned-looking draft turned out to be a real one.
-  const discarded = entry.lineBuf;
-  void window.cth.writePty(ptyId, '\x15');
-  entry.inputDirty = false;
-  entry.inputDirtyAt = 0;
-  // Reset our model of the line too. Leaving it set made the very next keystroke
-  // recompute `inputDirty` from the text we just deleted, so the draft block
-  // came straight back and the deleted text corrupted the next parsed command.
-  entry.lineBuf = '';
-  // NOT cleared: `automationBlocked`. Ctrl-U kills the input line; it does not
-  // close an open picker. Clearing the latch here told automation the prompt was
-  // free while a picker still owned it, so the queued message was typed into the
-  // picker and acknowledged as delivered — the message was lost and the picker
-  // got garbage. The latch is released by a real Enter/Esc/Ctrl-C, or it expires.
-  // Let the TUI repaint the cleared line before automation types into it.
-  entry.automationSettleUntil = Date.now() + 300;
-  return discarded;
+  if (!entry || entry.exited) return { ok: false, recoveredText: '', error: 'Terminal is unavailable. Input was not released.' };
+  if (entry.recoveryPending) return { ok: false, recoveredText: '', error: 'Recovery is already waiting for the terminal.' };
+  if (!(kind === 'draft' ? entry.inputDirty : entry.automationBlocked)) {
+    return { ok: false, recoveredText: '', error: 'Terminal input changed. Inspect it before recovering.' };
+  }
+  const generation = entry.generation, revision = entry.inputRevision, draft = entry.lineBuf;
+  entry.recoveryPending = true;
+  try {
+    const result = await window.cth.writePty(ptyId, kind === 'draft' ? '\x15' : '\x1b');
+    if (!result?.ok) return { ok: false, recoveredText: '', error: 'Terminal rejected recovery. Input remains held; inspect the terminal before retrying.' };
+    if (pool.get(ptyId) !== entry || entry.exited || entry.generation !== generation || entry.inputRevision !== revision) {
+      return { ok: false, recoveredText: kind === 'draft' ? draft : '', error: 'Terminal changed during recovery. Inspect current input before continuing.' };
+    }
+    if (kind === 'picker') releasePickerBlock(entry);
+    else {
+      entry.inputDirty = false;
+      entry.inputDirtyAt = 0;
+      entry.lineBuf = '';
+      // Ctrl-U must never release a separate picker hold.
+      entry.automationSettleUntil = Date.now() + 300;
+    }
+    return { ok: true, recoveredText: kind === 'draft' ? draft : '' };
+  } catch {
+    return { ok: false, recoveredText: '', error: 'Recovery could not be confirmed. Input remains held; inspect the terminal before retrying.' };
+  } finally {
+    entry.recoveryPending = false;
+  }
 }
 
-/** Close an open picker by sending Escape, the key that actually closes one.
- *
- *  ONLY ever called from the composer's own button — i.e. because the user asked
- *  for it. Automation must never do this on its own: the menu belongs to the
- *  user, and we cannot see whether Escape actually closed it, so closing one to
- *  make room for a queued message is both rude and unverifiable. */
-export function dismissTerminalPicker(ptyId: string): void {
-  const entry = pool.get(ptyId);
-  if (!entry || entry.exited) return;
-  void window.cth.writePty(ptyId, '\x1b');
-  releasePickerBlock(entry);
+export function clearTerminalDraft(ptyId: string): Promise<PromptRecoveryResult> {
+  return recoverTerminalInput(ptyId, 'draft');
+}
+
+export function dismissTerminalPicker(ptyId: string): Promise<PromptRecoveryResult> {
+  return recoverTerminalInput(ptyId, 'picker');
 }
 
 /** Give this terminal a WebGL renderer for as long as it is on screen.
@@ -602,6 +563,7 @@ export function resetTerminal(
 ): void {
   const entry = pool.get(ptyId);
   if (!entry) return;
+  entry.generation++;
   // Re-arm input — a prior exit (or the kill that precedes the respawn) may have
   // latched `exited`, which otherwise makes onData drop keystrokes silently.
   entry.exited = false;

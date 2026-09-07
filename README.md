@@ -2,6 +2,17 @@
 
 # Operatus
 
+**Local MCP:** control the running Mac desktop from Codex or Claude Code using
+the opt-in [operator bridge](packages/operatus-mcp/README.md). It reuses the
+Gauntlet scheduler and subscription-only safeguards; no Computer Use is required
+for its five narrow tools.
+
+> Development pilot: isolated subscription-only Gauntlets are enabled on macOS,
+> with per-launch account checks. Legacy agent startup and API-backed
+> voice/inference remain disabled. Keep paid extras/top-ups disabled. See the
+> [billing policy](docs/architecture/adr-subscription-only.md) and
+> [release-readiness roadmap](docs/RELEASE_READINESS_ROADMAP.md).
+
 ### A local operations floor for conducted AI coding work
 
 Operatus is a local-first operating apparatus for a scalable agent firm. Its core unit of work is an **agent venture**: a deterministic, inspectable Gauntlet loop around real Claude Code and Codex CLI sessions, exact Git commits, independent critique, and bounded repair.
@@ -30,7 +41,7 @@ The loop ends as `passed`, `human_required`, `cancelled`, or an explicit infrast
 - SQLite-authoritative runs with append-only events and deterministic restart recovery.
 - Immutable SHA-256 quality bars and full 40-character Git artifact identities.
 - Fail-closed candidate and detached Critic worktrees; failed work is preserved for inspection.
-- Claude Code defaults for Conductor, Implementer, and Repairer; Codex defaults for Critic.
+- Claude or Codex Conductor, with GPT-6 Astra as the new desktop profile default; Claude Implementer/Repairer and an independent Codex Critic.
 - A pinned [Agent Primitives](https://github.com/ConnorBritain/agent-primitives) registry with exact resolution receipts.
 - A configurable Skill Depot, seeded with [mattpocock/skills](https://github.com/mattpocock/skills) at commit `068b6e0c62393147daf03530149cdce209c93da8`.
 - A Runs surface showing the contract, phase, exact artifact, checks, findings, acknowledgment, repairs, skills, and events.
@@ -48,7 +59,7 @@ The candidate branch is always left unmerged and unpushed for a human to inspect
 - Xcode Command Line Tools (`xcode-select --install`) for native modules.
 - Installed and authenticated `claude` and `codex` CLIs for the default role profile.
 
-Operatus uses those existing CLI subscriptions. Optional voice and third-party integrations can require separate API credentials.
+Operatus uses those existing CLI subscriptions. API-backed voice and inference integrations are disabled, not optional paid fallbacks.
 
 ## Development
 
@@ -58,6 +69,11 @@ cd operatus
 npm ci
 npm run dev
 ```
+
+For the installed Apple Silicon Mac app, use `npm run app:refresh` to build and
+stage a local update without installers or a profile reset. If the app is open,
+quit normally and run it again to install. A double-click launcher and rollback
+instructions are in [Local app updates](docs/LOCAL_APP_UPDATES.md).
 
 Verification:
 

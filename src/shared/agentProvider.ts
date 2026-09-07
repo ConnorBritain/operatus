@@ -162,6 +162,10 @@ export interface AgentProviderPreset {
   resumeSubcommand?: string; // CLIs that resume via a subcommand instead of a flag (Codex: `codex resume [OPTIONS] [SESSION_ID]`)
 }
 
+// Owner's preferred Conductor. A preference never grants runtime admission.
+export const DEFAULT_CONDUCTOR_PROVIDER: AgentProvider = 'codex';
+export const DEFAULT_CONDUCTOR_MODEL = 'gpt-6-astra';
+
 export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
   {
     id: 'claude',
@@ -176,7 +180,7 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     canReceiveInbox: true,
     // Longest-context Claude variant — matches the "give Conductor a bigger model"
     // advisory and the Recommended tag on the orchestrator picker.
-    recommendedOrchestratorModel: 'claude-opus-4-8[1m]',
+    recommendedOrchestratorModel: 'claude-fable-5-1',
     resumeFlag: '--resume',
     // Official Claude Code install (npm global). Used by the missing-CLI auto-install.
     installCommand: 'npm install -g @anthropic-ai/claude-code',
@@ -224,9 +228,8 @@ export const AGENT_PROVIDER_PRESETS: AgentProviderPreset[] = [
     canReceiveInbox: true,
     initialPromptFlag: undefined,
     positionalInitialPrompt: true,
-    // Codex's long-context coding model for the orchestrator role. // TODO-verify
-    // the exact codex CLI model id (couldn't install the codex CLI to confirm).
-    recommendedOrchestratorModel: 'gpt-5-codex',
+    // Verified in the local Codex model catalog, 2026-09-07.
+    recommendedOrchestratorModel: DEFAULT_CONDUCTOR_MODEL,
     // Codex resumes via a SUBCOMMAND, not a flag: `codex resume [OPTIONS]
     // [SESSION_ID]`. A `--resume <id>` flag does not exist, which is why restarts
     // used to silently start a brand-new session instead of continuing.

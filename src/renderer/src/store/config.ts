@@ -68,7 +68,7 @@ export interface HarnessConfig {
   /** Default model for newly spawned agents (e.g. 'claude-sonnet-4-6[1m]'); unset = CLI default. */
   defaultModel?: string;
   /** Which provider+model powers the GOD orchestrator ("Conductor"). Default
-   *  'claude' / 'claude-opus-4-8'. Mirrors src/main/config.ts. */
+   *  'codex' / 'gpt-6-astra'. Mirrors src/main/config.ts. */
   godProvider?: AgentProvider;
   godModel?: string;
   /** Per-server consent for the default MCP bundle, keyed by catalog id (mirrors
@@ -171,6 +171,11 @@ export interface ModelOption {
 // happens to choose, which the UI cannot show and the user cannot predict. The
 // harness default is marked ` · default` instead, and it names a real model.
 export const AGENT_MODELS: ModelOption[] = [
+  // Verified 2026-09-05 against Claude's model-configuration and Fable-plan
+  // documentation. Requires Claude Code >= 2.1.255 and Max/premium-seat
+  // included allowance for subscription-only use. Catalog presence is NOT
+  // runtime admission; the billing hold remains authoritative.
+  { id: 'claude-fable-5-1', label: 'Fable 5.1' },
   { id: 'claude-fable-5', label: 'Fable 5' },
   { id: 'claude-opus-5', label: 'Opus 5 · 1M' },
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
@@ -188,9 +193,16 @@ export const CODEX_MODELS: ModelOption[] = [
   // harness's `config.defaultModel`; the pickers mark that one separately, and
   // labelling both "default" is what made the two impossible to tell apart.
   { id: undefined, label: 'CLI default' },
+  // Visible models from the authenticated local Codex catalog, 2026-09-07.
+  // Hidden/reserve/internal models are deliberately excluded. Availability in
+  // this picker is a preference, not subscription or role admission.
+  { id: 'gpt-6-astra', label: 'GPT-6 Astra' },
   { id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
   { id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra' },
-  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' }
+  { id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
+  { id: 'gpt-5.5', label: 'GPT-5.5' },
+  { id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
+  { id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark' }
 ];
 
 /** Models offered when an agent runs on the Antigravity CLI (`agy`). agy's

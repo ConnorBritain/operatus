@@ -72,6 +72,9 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
   // persist in the store, attachments deliberately don't carry over).
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [recoveryPending, setRecoveryPending] = useState(false);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
+  const recoveryInFlight = useRef(false);
 
   const addAttachments = (incoming: Attachment[]) =>
     setAttachments((prev) => {
@@ -169,7 +172,30 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
     ? `held — a slash-command picker is open in ${agent.name}'s terminal`
     : block === 'exited'
     ? `held — ${agent.name}'s terminal has exited`
+    : block === 'recovering'
+    ? 'held — waiting for terminal recovery acknowledgment'
     : `sending to ${agent.name} one-by-one…`;
+
+  const recoverPrompt = async () => {
+    if (!agent.ptyId || recoveryInFlight.current || (block !== 'draft' && block !== 'picker')) return;
+    recoveryInFlight.current = true;
+    setRecoveryPending(true);
+    setRecoveryError(null);
+    try {
+      const result = await (block === 'picker' ? dismissTerminalPicker(agent.ptyId) : clearTerminalDraft(agent.ptyId));
+      if (result.recoveredText.trim()) {
+        // Read the current agent-scoped draft after the asynchronous receipt.
+        // Do not overwrite edits made while waiting or another agent's draft.
+        const store = useStore.getState();
+        const current = store.drafts[agent.id] ?? '';
+        store.setDraft(agent.id, current ? `${current}\n${result.recoveredText}` : result.recoveredText);
+      }
+      if (!result.ok) setRecoveryError(result.error ?? 'Recovery was not confirmed. Inspect the terminal.');
+    } finally {
+      recoveryInFlight.current = false;
+      setRecoveryPending(false);
+    }
+  };
 
   return (
     <div
@@ -225,18 +251,8 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
         )}
         {(block === 'draft' || block === 'picker') && agent.ptyId && (
           <button
-            onClick={() => {
-              // A picker and a draft are unblocked by different keys: Escape
-              // closes the picker, Ctrl-U kills the input line. Sending Ctrl-U
-              // at a picker leaves it open while telling automation the prompt
-              // is free, which is how a queued message ends up typed into a
-              // menu and marked delivered.
-              if (block === 'picker') { dismissTerminalPicker(agent.ptyId!); return; }
-              // Keep whatever was on the prompt — it lands in this composer so
-              // the user can send it properly instead of losing it to Ctrl-U.
-              const discarded = clearTerminalDraft(agent.ptyId!);
-              if (discarded.trim()) setText(text ? `${text}\n${discarded}` : discarded);
-            }}
+            onClick={() => { void recoverPrompt(); }}
+            disabled={recoveryPending}
             title={block === 'picker'
               ? "Close the picker this agent has open so queued messages can be delivered"
               : "Move the leftover text on this agent's prompt into this box so queued messages can be delivered"}
@@ -260,6 +276,8 @@ export function MessageQueueComposer({ agent }: MessageQueueComposerProps) {
           >clear all</button>
         )}
       </div>
+
+      {recoveryError && <div role="alert" style={{ fontSize: 12, color: 'var(--cth-ink-900)' }}>{recoveryError}</div>}
 
       {/* Pending list */}
       {queue.length > 0 && (

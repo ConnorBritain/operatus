@@ -1,8 +1,9 @@
 import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, relative, resolve } from 'node:path';
+import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
+import { basename, dirname, isAbsolute, relative, resolve } from 'node:path';
 import type { CheckReceipt, FrozenCheck } from '../../shared/gauntlet';
 import { assertFullSha, GauntletInvariantError } from './core';
+import { prepareCheckSandbox } from './checkSandbox';
 
 export interface GauntletWorkspace {
   repository: string;
@@ -10,6 +11,17 @@ export interface GauntletWorkspace {
   branch: string | null;
   expectedSha: string;
   mode: 'candidate' | 'critic';
+}
+
+/** Resolve existing ancestors without creating the planned location. */
+export function canonicalPlannedPath(path: string): string {
+  let ancestor = resolve(path);
+  const suffix: string[] = [];
+  while (!existsSync(ancestor)) {
+    suffix.unshift(basename(ancestor));
+    ancestor = dirname(ancestor);
+  }
+  return resolve(realpathSync(ancestor), ...suffix);
 }
 
 export class ArtifactWorkspace {
@@ -29,7 +41,7 @@ export class ArtifactWorkspace {
     return sha;
   }
 
-  createCandidate(input: { repository: string; runId: string; launchId: string; branch: string; expectedSha: string }): GauntletWorkspace {
+  createCandidate(input: { repository: string; runId: string; launchId: string; branch: string; expectedSha: string; requireNewBranch?: boolean }): GauntletWorkspace {
     assertSafeId(input.runId, 'runId');
     assertSafeId(input.launchId, 'launchId');
     assertSafeBranch(input.branch);
@@ -41,6 +53,7 @@ export class ArtifactWorkspace {
 
     const branchExists = gitStatus(repository, ['show-ref', '--verify', '--quiet', `refs/heads/${input.branch}`]) === 0;
     if (branchExists) {
+      if (input.requireNewBranch) throw new GauntletInvariantError('candidate attempt branch already exists');
       const branchSha = this.resolveSha(repository, input.branch);
       if (branchSha !== input.expectedSha) {
         throw new GauntletInvariantError(`candidate branch moved: expected ${input.expectedSha}, got ${branchSha}`);
@@ -50,7 +63,7 @@ export class ArtifactWorkspace {
       git(repository, ['worktree', 'add', '-b', input.branch, path, input.expectedSha]);
     }
     this.assertWorkspace(path, input.expectedSha, false);
-    return { repository, path, branch: input.branch, expectedSha: input.expectedSha, mode: 'candidate' };
+    return { repository, path: realpathSync(path), branch: input.branch, expectedSha: input.expectedSha, mode: 'candidate' };
   }
 
   createCritic(input: { repository: string; runId: string; launchId: string; artifactSha: string }): GauntletWorkspace {
@@ -63,11 +76,14 @@ export class ArtifactWorkspace {
     mkdirSync(dirname(path), { recursive: true });
     git(repository, ['worktree', 'add', '--detach', path, input.artifactSha]);
     this.assertWorkspace(path, input.artifactSha, true);
-    return { repository, path, branch: null, expectedSha: input.artifactSha, mode: 'critic' };
+    return { repository, path: realpathSync(path), branch: null, expectedSha: input.artifactSha, mode: 'critic' };
   }
 
   validateArtifact(workspace: GauntletWorkspace, expectedParentSha: string): { sha: string; diffSummary: string } {
     assertFullSha(expectedParentSha, 'expectedParentSha');
+    if (!workspace.branch || git(workspace.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']).trim() !== workspace.branch) {
+      throw new GauntletInvariantError('worker completion rejected: not on the assigned candidate branch');
+    }
     const status = git(workspace.path, ['status', '--porcelain=v1', '--untracked-files=all']);
     if (status.trim()) throw new GauntletInvariantError('worker completion rejected: worktree is not clean');
     const sha = this.resolveSha(workspace.path);
@@ -97,10 +113,26 @@ export class ArtifactWorkspace {
   preserveFailure(workspace: GauntletWorkspace, reason: string): void {
     if (!existsSync(workspace.path)) return;
     if (workspace.mode === 'candidate' && workspace.branch) {
+      // A repeated preservation is allowed after this worktree was detached,
+      // but never detach an unrelated branch selected outside this launch.
+      const branch = git(workspace.path, ['rev-parse', '--abbrev-ref', 'HEAD']).trim();
+      if (branch !== 'HEAD' && branch !== workspace.branch) throw new GauntletInvariantError('candidate worktree switched to another branch');
       git(workspace.path, ['switch', '--detach']);
     }
     const boundedReason = reason.replace(/[\r\n]+/g, ' ').slice(0, 240) || 'failed Gauntlet launch';
-    git(workspace.repository, ['worktree', 'lock', '--reason', `Operatus: ${boundedReason}`, workspace.path]);
+    const lockPath = resolve(workspace.path, git(workspace.path, ['rev-parse', '--git-path', 'locked']).trim());
+    if (!existsSync(lockPath)) git(workspace.repository, ['worktree', 'lock', '--reason', `Operatus: ${boundedReason}`, workspace.path]);
+  }
+
+  observePreservation(workspace: GauntletWorkspace): { observedSha: string | null; dirty: boolean | null } {
+    try { lstatSync(workspace.path); } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return { observedSha: null, dirty: null };
+      throw error;
+    }
+    if (realpathSync(workspace.path) !== workspace.path) throw new GauntletInvariantError('preservation worktree path was redirected');
+    const common = (cwd: string): string => realpathSync(resolve(cwd, git(cwd, ['rev-parse', '--git-common-dir']).trim()));
+    if (common(workspace.path) !== common(workspace.repository)) throw new GauntletInvariantError('preservation worktree belongs to another repository');
+    return { observedSha: this.resolveSha(workspace.path), dirty: Boolean(git(workspace.path, ['status', '--porcelain=v1', '--untracked-files=all']).trim()) };
   }
 
   private assertWorkspace(path: string, expectedSha: string, requireClean: boolean): void {
@@ -111,7 +143,8 @@ export class ArtifactWorkspace {
     }
   }
 
-  private target(runId: string, launchId: string): string {
+  target(runId: string, launchId: string): string {
+    assertSafeId(runId, 'runId'); assertSafeId(launchId, 'launchId');
     const target = resolve(this.worktreeRoot, runId, launchId);
     const rel = relative(resolve(this.worktreeRoot), target);
     if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new GauntletInvariantError('worktree target escaped configured root');
@@ -119,23 +152,24 @@ export class ArtifactWorkspace {
   }
 }
 
-export async function runFrozenChecks(worktree: string, checks: FrozenCheck[], maxOutput = 100_000): Promise<CheckReceipt[]> {
+export async function runFrozenChecks(worktree: string, checks: FrozenCheck[], maxOutput = 100_000, signal?: AbortSignal): Promise<CheckReceipt[]> {
   const receipts: CheckReceipt[] = [];
+  signal?.throwIfAborted();
   for (const check of checks) {
-    receipts.push(await runCheck(worktree, check, maxOutput));
+    signal?.throwIfAborted();
+    receipts.push(await runCheck(worktree, check, maxOutput, signal));
+    signal?.throwIfAborted();
   }
   return receipts;
 }
 
-function runCheck(cwd: string, check: FrozenCheck, maxOutput: number): Promise<CheckReceipt> {
+function runCheck(cwd: string, check: FrozenCheck, maxOutput: number, signal?: AbortSignal): Promise<CheckReceipt> {
+  const sandbox = prepareCheckSandbox(cwd);
   return new Promise((resolveReceipt) => {
     const started = Date.now();
-    const shell = process.platform === 'win32'
-      ? { command: process.env.ComSpec || 'cmd.exe', args: ['/d', '/s', '/c', check.command] }
-      : { command: '/bin/bash', args: ['-lc', check.command] };
-    const child = spawn(shell.command, shell.args, {
-      cwd,
-      env: process.env,
+    const child = spawn(sandbox.command, sandbox.args(check.command), {
+      cwd: sandbox.cwd,
+      env: sandbox.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       // A separate POSIX process group lets a timeout terminate descendants of
       // the shell as well as the shell itself. Windows uses taskkill /T below.
@@ -144,6 +178,11 @@ function runCheck(cwd: string, check: FrozenCheck, maxOutput: number): Promise<C
     let output = '';
     let timedOut = false;
     let forceTimer: NodeJS.Timeout | null = null;
+    // Shutdown is not a failed check receipt: kill the owned check group and
+    // let the caller reject after close, before any artifact can be recorded.
+    const abort = (): void => terminateProcessTree(child.pid, 'SIGKILL');
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
     const collect = (chunk: Buffer): void => {
       if (output.length < maxOutput) output += chunk.toString('utf8').slice(0, maxOutput - output.length);
     };
@@ -155,7 +194,8 @@ function runCheck(cwd: string, check: FrozenCheck, maxOutput: number): Promise<C
       forceTimer = setTimeout(() => terminateProcessTree(child.pid, 'SIGKILL'), 2_000);
       forceTimer.unref();
     }, check.timeoutMs);
-    child.once('exit', (code) => {
+    child.once('close', (code) => {
+      signal?.removeEventListener('abort', abort);
       clearTimeout(timeout);
       if (forceTimer) clearTimeout(forceTimer);
       resolveReceipt({
@@ -164,10 +204,12 @@ function runCheck(cwd: string, check: FrozenCheck, maxOutput: number): Promise<C
         exitCode: code,
         timedOut,
         durationMs: Date.now() - started,
-        output
+        output,
+        execution: sandbox.receipt
       });
     });
     child.once('error', (error) => {
+      signal?.removeEventListener('abort', abort);
       clearTimeout(timeout);
       if (forceTimer) clearTimeout(forceTimer);
       resolveReceipt({
@@ -176,7 +218,8 @@ function runCheck(cwd: string, check: FrozenCheck, maxOutput: number): Promise<C
         exitCode: null,
         timedOut,
         durationMs: Date.now() - started,
-        output: `${output}\n${error.message}`.trim()
+        output: `${output}\n${error.message}`.trim(),
+        execution: sandbox.receipt
       });
     });
   });

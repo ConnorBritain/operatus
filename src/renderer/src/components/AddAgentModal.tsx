@@ -394,7 +394,7 @@ export function AddAgentModal({ onClose, config, onConfigChange }: AddAgentModal
       seedPrompt: spawnRes.seedPrompt,
       recentTextTs: Date.now()
     };
-    addAgent(agent);
+    addAgent(agent, { select: true });
     // Remember the folder for the next hire: promote it to the front of the
     // registeredRepos quick-picks (the modal's default cwd) so back-to-back
     // hires land in the same project without re-picking.

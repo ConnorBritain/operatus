@@ -1,0 +1,9 @@
+{
+  "claudeAiOauth": {
+    "accessToken": "synthetic-only-not-a-real-access-token",
+    "refreshToken": "synthetic-only-not-a-real-refresh-token",
+    "expiresAt": 4102444800000,
+    "scopes": ["user:inference", "user:profile"],
+    "subscriptionType": "max"
+  }
+}

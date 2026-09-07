@@ -9,17 +9,20 @@ import { randomBytes, createHash, timingSafeEqual } from 'node:crypto';
 import { join, resolve, sep, basename, dirname } from 'node:path';
 import { request as httpsRequest } from 'node:https';
 import { PtyManager, type SpawnOptions } from './pty';
+import { apiInferenceError, isolatedGauntletLaunchError, subscriptionLaunchError } from '../shared/billingPolicy';
+import { inspectSubscriptionSetup } from './subscriptionPreflight';
 import { resolveCommand as resolveCliCommand } from './shellEnv';
+import { isExecutableReference } from './commandResolution';
 import { initAutoUpdater } from './updater';
 import { RealtimeFloorWatcher } from './realtimeFloorWatcher';
 import {
-  readConfig, writeConfig, resetConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
+  readConfig, writeConfig, ensureHarnessHome, ensureClaudePermissionsAccepted,
   modelForRole, OPS_STANDUP_MISSION, HEARTBEAT_MISSION, COMPACT_MAINTENANCE_MISSION, type HarnessConfig, type ScheduledMission
 } from './config';
 import { listDir, readFileText, writeFileText, statAbs, expandTilde } from './fs';
 import {
   getBranch, getStatus, getLog, getBranches, getAheadBehind, isRepo, getDiff, mainRepoRoot,
-  addWorktree, removeWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe,
+  addWorktree, removeWorktree as removeOrdinaryWorktree, worktreeHasUnintegratedWork, worktreeIsGcSafe,
   getLogGraph, getCommitFiles, getFileAtRev, compareRefs, listWorktrees, checkoutRef
 } from './git';
 import { HiveManager, type AgentMeta, type HiveMessage, type HiveTask } from './hive';
@@ -31,14 +34,24 @@ import { KnowledgeManager } from './knowledge';
 import { MemoryReflector, type ReflectSettings } from './reflect';
 import { PersistStore } from './db';
 import { LocalGauntletBackend, type PreparedLaunch } from './gauntlet/localBackend';
+import { GauntletSpawnOwnership } from './gauntlet/spawnOwnership';
+import { legacyCleanupError } from './gauntlet/cleanupOwnership';
+import { refuseUnsafeReset } from './reset';
 import { GauntletControlServer } from './gauntlet/controlServer';
 import { OperatusRemoteNode, REMOTE_NODE_SECRET_REF } from './remoteNode';
-import { buildConductorAcknowledgmentPrompt, buildConductorOrientationPrompt } from './gauntlet/prompts';
+import { desktopRunStarter } from './gauntlet/desktopStart';
+import { createOperatorService } from './gauntlet/operatorService';
+import { OperatorServer, readOperatorPolicy } from './gauntlet/operatorServer';
+import { DEFAULT_ROLE_PROVIDERS } from '../shared/gauntlet';
+import { desktopCapacity } from './gauntlet/desktopCapacity';
+import { desktopPriority } from './gauntlet/operatorPriority';
+import { desktopCandidateHandoff } from './gauntlet/desktopCandidateHandoff';
+import { preparationInspector } from './gauntlet/preparationInspection';
+import { IsolatedGauntletRunner } from './gauntlet/isolatedRunner';
+import { createIsolatedProviderFactory } from './gauntlet/isolatedProviderFactory';
 import type {
   GauntletRunSnapshot,
-  RoleSkillAssignment,
-  SkillDepotSource,
-  StartGauntletInput
+  SkillDepotSource
 } from '../shared/gauntlet';
 import type { RemoteNodeConfigureInput, RemoteNodePairInput } from '../shared/remoteNode';
 import { readAgentUsage, readContextTokens, seedSessionTranscript, resolveSessionCwd } from './transcript';
@@ -64,6 +77,7 @@ import { initCompletionWatcher } from './realtimeCompletionWatcher';
 import type { TaskCard, InboxMessage } from './realtimeCompletionWatcher';
 import { TelemetryCollector } from './telemetry';
 import { analytics } from './analytics';
+import { createFinalQuitBarrier } from './finalQuit';
 import { IntegrationBroker } from './integrationBroker';
 import * as integrations from './integrations';
 import { validateBaseUrl, buildAuthHeaders, resolveUpstreamUrl, secretRefFor, INTEGRATION_TEMPLATES } from '../shared/integrations';
@@ -304,11 +318,13 @@ const reflector = new MemoryReflector(
 // net-new command history. Opened in whenReady, closed in the teardown blocks.
 const persist = new PersistStore();
 let gauntletBackend: LocalGauntletBackend | null = null;
+const gauntletSpawnOwnership = new GauntletSpawnOwnership(
+  () => gauntletBackend, join(app.getPath('userData'), 'worktrees', 'gauntlet')
+);
 let gauntletControl: GauntletControlServer | null = null;
+let operatorServer: OperatorServer | null = null;
+let isolatedGauntletRunner: IsolatedGauntletRunner | null = null;
 let remoteNode: OperatusRemoteNode | null = null;
-const advancingGauntlets = new Set<string>();
-const orientedGauntletPrompts = new Set<string>();
-const acknowledgedReportPrompts = new Set<string>();
 const scheduledGauntletReaps = new Set<string>();
 const reapedGauntletLaunches = new Set<string>();
 let gauntletWatchdog: NodeJS.Timeout | null = null;
@@ -319,6 +335,7 @@ function gauntlet(): LocalGauntletBackend {
 }
 
 function publishGauntlet(snapshot: GauntletRunSnapshot): GauntletRunSnapshot {
+  isolatedGauntletRunner?.observe(snapshot);
   for (const win of allWindows) {
     if (!win.isDestroyed()) win.webContents.send('gauntlet:changed', snapshot);
   }
@@ -326,7 +343,7 @@ function publishGauntlet(snapshot: GauntletRunSnapshot): GauntletRunSnapshot {
   // Give its helper response a brief chance to flush, then reap the PTY while
   // preserving the strict worktree/artifact for inspection.
   for (const launch of snapshot.launches) {
-    if (launch.id === snapshot.run.currentLaunchId
+    if (isolatedGauntletRunner?.owns(snapshot.run.id) || launch.role === 'conductor' || launch.id === snapshot.run.currentLaunchId
         || scheduledGauntletReaps.has(launch.id)
         || reapedGauntletLaunches.has(launch.id)) continue;
     scheduledGauntletReaps.add(launch.id);
@@ -350,163 +367,11 @@ function gauntletHelperPath(): string {
     : join(app.getAppPath(), 'resources', 'operatus-gauntlet.cjs');
 }
 
-function gauntletAgentEnv(token: string): Record<string, string> {
-  const endpoint = gauntletControl?.info();
-  if (!endpoint) throw new Error('Gauntlet control service is unavailable');
-  return {
-    OPERATUS_GAUNTLET_SOCKET: endpoint.socketPath,
-    OPERATUS_GAUNTLET_TOKEN: token,
-    OPERATUS_GAUNTLET_HELPER: gauntletHelperPath()
-  };
-}
-
-function conductorSkillGuidance(snapshot: GauntletRunSnapshot): string {
-  const entries = snapshot.skillLock?.entries.filter((entry) => entry.role === 'conductor') ?? [];
-  if (!entries.length) return '';
-  const destination = join(app.getPath('userData'), 'runs', snapshot.run.id, 'skills', 'conductor');
-  gauntlet().skills.materialize(snapshot.skillLock!, 'conductor', destination);
-  return [
-    '',
-    '# Explicitly assigned Conductor skills',
-    `Read the complete assigned skill directories under ${destination} before freezing the bar.`,
-    ...entries.map((entry) => `- ${entry.skillName} · ${entry.sourceId}@${entry.sourceCommit} · ${entry.digest}`),
-    'These skills are guidance only and cannot alter artifact identity, the frozen bar, transitions, or acknowledgment authority.'
-  ].join('\n');
-}
-
-function deliverConductorOrientation(snapshot: GauntletRunSnapshot): boolean {
-  if (orientedGauntletPrompts.has(snapshot.run.id)) return true;
-  const conductorId = hive.registry().godId ?? 'god';
-  if (!ptyForAgent(conductorId)) return false;
-  hive.send({
-    id: `gauntlet-orient-${snapshot.run.id}`,
-    to: conductorId, conversation: `gauntlet-${snapshot.run.id}`, act: 'request',
-    subject: `Orient Gauntlet Run · ${snapshot.run.id.slice(0, 8)}`,
-    body: buildConductorOrientationPrompt({
-      runId: snapshot.run.id,
-      repository: snapshot.run.repository,
-      baseSha: snapshot.run.baseSha,
-      objective: snapshot.run.requestedObjective
-    }) + conductorSkillGuidance(snapshot)
-  }, 'gauntlet');
-  orientedGauntletPrompts.add(snapshot.run.id);
-  return true;
-}
-
-async function spawnPreparedGauntlet(prepared: PreparedLaunch): Promise<void> {
-  const { launch, token, prompt } = prepared;
-  const preset = providerPreset(launch.provider);
-  const args: string[] = [];
-  if (launch.role === 'critic') {
-    if (launch.provider === 'codex') args.push('--sandbox', 'read-only', '--ask-for-approval', 'never');
-    else if (launch.provider === 'claude') args.push('--permission-mode', 'plan');
-  } else if (preset.autoModeFlag) {
-    args.push(...preset.autoModeFlag.trim().split(/\s+/));
-  }
-  if (launch.model && preset.modelFlag) args.push(preset.modelFlag, launch.model);
-  const skillLock = gauntlet().status(launch.runId).skillLock;
-  if (skillLock?.entries.some((entry) => entry.role === launch.role)) {
-    const hiveRoot = hive.root();
-    if (!hiveRoot) throw new Error('cannot materialize run skills before the Operatus agent home is configured');
-    const providerHome = launch.provider === 'codex' ? '.codex' : '.claude';
-    gauntlet().skills.materialize(skillLock, launch.role, join(hiveRoot, 'agents', launch.id, providerHome, 'skills'));
-  }
-  const result = await spawnAgentCore({
-    id: launch.id,
-    cwd: launch.worktreePath,
-    command: preset.defaultCommand,
-    provider: launch.provider,
-    args,
-    env: gauntletAgentEnv(token),
-    hive: {
-      id: launch.id,
-      name: `${launch.role.slice(0, 1).toUpperCase()}${launch.role.slice(1)} · ${launch.runId.slice(0, 8)}`,
-      provider: launch.provider,
-      role: launch.role,
-      capabilities: launch.role === 'critic' ? ['review', 'read-only'] : ['implementation'],
-      cwd: launch.worktreePath
-    },
-    isolate: false,
-    resume: false,
-    noAutoInstall: false
-  }, liveWebContents());
-  if (!result.ok) throw new Error(result.error || `failed to launch ${launch.role}`);
-  // This spawn originates in MAIN rather than the Add Agent renderer flow.
-  // Announce it before routing the assignment so the floor creates the card,
-  // terminal pool, and guarded inbox-delivery path in event order.
-  try {
-    liveWebContents()?.send('hive:agentSpawned', {
-      id: launch.id,
-      name: `${launch.role.slice(0, 1).toUpperCase()}${launch.role.slice(1)} · ${launch.runId.slice(0, 8)}`,
-      provider: launch.provider,
-      cwd: launch.worktreePath,
-      command: preset.defaultCommand,
-      role: `Gauntlet ${launch.role}`,
-      worktreePath: launch.worktreePath
-    });
-  } catch { /* a headless run still retains hook-based lifecycle */ }
-  hive.send({
-    to: launch.id,
-    conversation: `gauntlet-${launch.runId}`,
-    act: 'request',
-    subject: `Gauntlet ${launch.role} assignment`,
-    body: prompt,
-    requires_reply: false
-  }, 'conductor');
-}
-
 async function advanceGauntlet(runId: string): Promise<void> {
-  if (advancingGauntlets.has(runId) || !gauntletBackend) return;
-  advancingGauntlets.add(runId);
-  try {
-    // One call may cross a transport retry state; every preparation transition
-    // is transactional, so concurrent callbacks cannot double-launch a role.
-    for (;;) {
-      const snapshot = gauntletBackend.status(runId);
-      let prepared: PreparedLaunch | null = null;
-      if (snapshot.run.status === 'orienting') {
-        // On restart the renderer may need a moment to restore the long-lived
-        // Conductor PTY. Leave the run intact and let the watchdog retry until
-        // that safe delivery boundary exists or the overall run budget expires.
-        try { deliverConductorOrientation(snapshot); } catch (error) {
-          console.error(`[gauntlet] orientation delivery ${runId} failed:`, error);
-        }
-        return;
-      } else if (snapshot.run.status === 'awaiting_implementation') prepared = gauntletBackend.prepareImplementer(runId);
-      else if (snapshot.run.status === 'awaiting_critic') prepared = gauntletBackend.prepareCritic(runId);
-      else if (snapshot.run.status === 'needs_repair') {
-        const packet = snapshot.repairPackets.at(-1);
-        if (!packet) throw new Error('run needs repair but has no repair packet');
-        prepared = gauntletBackend.prepareRepairer(runId, packet);
-      } else if (snapshot.run.status === 'awaiting_lead_ack') {
-        const report = snapshot.reports.find((candidate) => candidate.id === snapshot.run.currentCriticReportId);
-        if (report && !acknowledgedReportPrompts.has(report.id)) {
-          hive.send({
-            id: `gauntlet-ack-${report.id}`,
-            to: 'god', conversation: `gauntlet-${runId}`, act: 'request',
-            subject: `Conductor acknowledgment required · ${runId.slice(0, 8)}`,
-            body: buildConductorAcknowledgmentPrompt(report)
-          }, 'gauntlet');
-          acknowledgedReportPrompts.add(report.id);
-        }
-        return;
-      } else return;
-
-      publishGauntlet(gauntletBackend.status(runId));
-      try {
-        await spawnPreparedGauntlet(prepared);
-        return;
-      } catch (error) {
-        const failed = gauntletBackend.infrastructureFailure(runId, error instanceof Error ? error.message : String(error), true);
-        publishGauntlet(failed);
-        if (failed.run.status === 'infrastructure_failure') return;
-      }
-    }
-  } catch (error) {
-    console.error(`[gauntlet] advance ${runId} failed:`, error);
-  } finally {
-    advancingGauntlets.delete(runId);
-  }
+  if (allowQuit || !gauntletBackend || !isolatedGauntletRunner || isolatedGauntletLaunchError(process.platform)) return;
+  if (gauntletBackend.isCompleting(runId)) return;
+  try { await isolatedGauntletRunner.advance(runId); }
+  catch (error) { console.error(`[gauntlet] isolated lifecycle ${runId} failed:`, error); }
 }
 
 function startGauntletWatchdog(): void {
@@ -517,12 +382,10 @@ function startGauntletWatchdog(): void {
         publishGauntlet(snapshot);
         void advanceGauntlet(snapshot.run.id);
       }
-      // Also reconcile recoverable waiting states. This is what redelivers an
-      // orientation after restart once the renderer has restored Conductor.
-      for (const run of gauntlet().list()) {
-        if (!['passed', 'human_required', 'infrastructure_failure', 'cancelled'].includes(run.status)) {
-          void advanceGauntlet(run.id);
-        }
+      // Advance waiting runs through the native owner. Restart reconciliation
+      // escalates lost Conductor identities; no renderer PTY is resumed here.
+      for (const run of gauntlet().activeRuns()) {
+        void advanceGauntlet(run.id);
       }
     } catch (error) { console.error('[gauntlet] timeout sweep failed:', error); }
   }, 30_000);
@@ -613,6 +476,16 @@ interface PreservedWorktree {
  *  work is provably integrated, or when the worktree is already gone from disk. */
 const preservedWorktrees = new Map<string, PreservedWorktree>();
 
+function ordinaryCleanupError(id: string, path: string): string | null {
+  return legacyCleanupError({ id, path, managedRoot: join(app.getPath('userData'), 'worktrees', 'gauntlet') }, gauntletBackend?.store ?? null);
+}
+
+async function removeWorktree(cwd: string, path: string, id: string): Promise<{ ok: boolean; error?: string }> {
+  const error = ordinaryCleanupError(id, path);
+  if (error) return { ok: false, error };
+  return removeOrdinaryWorktree(cwd, path);
+}
+
 /**
  * Tear down everything tied to a PTY id: archive its hive agent, remove its
  * isolated git worktree, and drop the bookkeeping-map entries. Runs on BOTH an
@@ -653,13 +526,14 @@ function teardownPty(id: string): void {
     // Ephemeral workers get a SAFETY-GATED teardown: never auto-remove a worktree
     // that holds unintegrated work. This sits INSIDE teardownPty so it covers ALL
     // teardown routes — a worker that finished (controller kill), crashed, or was
-    // idle-reaped all land here. Normal agents keep the immediate force-remove.
+    // idle-reaped all land here. Ordinary removal also refuses dirty work and
+    // checks SQLite/path ownership before reaching the legacy Git helper.
     const worker = liveWorkers.get(id);
     if (worker) {
       liveWorkers.delete(id);
       void finalizeWorkerWorktree(wtPath, origCwd, worker);
     } else {
-      void removeWorktree(origCwd, wtPath)
+      void removeWorktree(origCwd, wtPath, id)
         .then(r => { if (!r.ok) console.error('[worktree] removeWorktree failed:', r.error); })
         .catch(e => console.error('[worktree] removeWorktree threw:', e));
     }
@@ -711,7 +585,7 @@ async function finalizeWorkerWorktree(wtPath: string, origCwd: string, worker: W
       );
       return;
     }
-    const r = await removeWorktree(origCwd, wtPath);
+    const r = await removeWorktree(origCwd, wtPath, worker.workerId);
     if (!r.ok) { console.error('[worker] removeWorktree failed:', r.error); return; }
     // Worktree is gone (clean/integrated at teardown), but DEFER its scratch-dir
     // cleanup to the throttled GC sweep rather than deleting it synchronously here:
@@ -744,6 +618,8 @@ function removeWorkerScratch(workerId: string): void {
   const dir = workerScratchDir(workerId);
   const root = hive.root();
   if (!dir || !root) return;
+  const ownershipError = ordinaryCleanupError(workerId, dir);
+  if (ownershipError) { console.warn('[worker] scratch preserved:', ownershipError); return; }
   const agentsRoot = join(root, 'agents');
   // Path-safety: the resolved dir must sit directly under agents/ with basename == id.
   if (resolve(dir) !== join(resolve(agentsRoot), basename(dir)) || basename(dir) !== workerId) return;
@@ -773,8 +649,9 @@ ptyManager.setExitHandler((id, exitCode) => {
   }
   if (gauntletBackend) {
     try {
-      const active = gauntletBackend.list().find((run) => run.currentLaunchId === id);
-      if (active) {
+      const launch = gauntletBackend.store.findLaunch(id);
+      const active = launch ? gauntletBackend.status(launch.runId).run : null;
+      if (active?.currentLaunchId === id && launch?.status === 'running') {
         const snapshot = publishGauntlet(gauntletBackend.infrastructureFailure(
           active.id,
           `Gauntlet role process exited before submitting a valid receipt (exit ${exitCode ?? 'unknown'})`,
@@ -2619,7 +2496,17 @@ ipcMain.handle('pty:spawn', async (evt, opts: AgentSpawnOptions) => {
  *  it can ALSO be invoked by the god-triggered ephemeral-worker watcher (which has
  *  no renderer `evt`). `owner` is the window that should receive this PTY's output
  *  (null → the primary window). Behavior-identical to the prior inline handler. */
-async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebContents | null, prepared?: PreparedLaunch): Promise<{ ok: boolean; error?: string; cwd?: string; worktreePath?: string; resumeNotFound?: boolean; resumed?: boolean; seedPrompt?: string }> {
+  if (allowQuit) return { ok: false, error: 'Operatus is shutting down' };
+  if (!isExecutableReference(opts.command)) return { ok: false, error: 'Engine must be a plain command name or an absolute executable path.' };
+  // Legacy main-only capability slot. Native Gauntlets no longer use this PTY
+  // launcher. Never obtain it from opts: renderer data cannot grant ownership.
+  const ownershipError = gauntletSpawnOwnership.check(opts, prepared);
+  if (ownershipError) return { ok: false, error: ownershipError };
+  // Before CLI probing, installers, global trust edits, Hive provisioning,
+  // API-key materialization, remote daemons, or any worker process can start.
+  const billingError = subscriptionLaunchError(opts.provider ?? opts.hive?.provider);
+  if (billingError) return { ok: false, error: billingError };
   // ── cwd INGESTION — expand `~` exactly once, here ───────────────────────────
   // This is the single door every agent spawn comes through (`pty:spawn` IPC and
   // the god-triggered ephemeral-worker watcher), so it is where a user-typed
@@ -2638,11 +2525,8 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
   const claudeProvider = isClaudeProvider(provider);
   opts.provider = provider;
   if (opts.hive) opts.hive = { ...opts.hive, provider };
-  // The long-lived Conductor gets the local control capability at process
-  // launch. The secret never crosses the renderer bridge or enters run records.
-  if (opts.hive?.isGod && gauntletControl) {
-    opts.env = { ...(opts.env ?? {}), ...gauntletAgentEnv(gauntletControl.info().conductorToken) };
-  }
+  // General Hive leads do not get cross-run Gauntlet authority. The isolated
+  // run-scoped Conductor launcher must supply its own private capability.
   // ── Missing engine CLI → run its installer visibly (pre-spawn) ───────────────
   // If the agent's engine binary (claude/codex/…) isn't installed, spawning it
   // just dies with "— process exited (code 1) —" and the user has no idea why.
@@ -2896,9 +2780,6 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
       ...(resumeNotFound ? { resumeNotFound: true } : {})
     };
   }
-  // Remember which agent owns this PTY so closing the tab can archive it. A
-  // live terminal means active — ensureAgent above already cleared `archived`.
-  if (opts.hive?.id) ptyToAgent.set(opts.id, opts.hive.id);
   // Pre-accept Claude Code's bypass-mode warning + folder-trust dialog so the
   // agent (spawned with --permission-mode bypassPermissions) doesn't stall on an
   // interactive prompt it can't answer and exit code 1. Best-effort, never blocks.
@@ -2965,12 +2846,22 @@ async function spawnAgentCore(opts: AgentSpawnOptions, owner: Electron.WebConten
     opts.env = { ...(opts.env ?? {}), ...extra };
   }
   // Codex Remote is daemon-based (there is no `/remote-control` slash command).
-  // Start/enable the daemon under this agent's isolated CODEX_HOME and connect
+  // Ordinary agents only: Gauntlet local execution must not depend on or start
+  // this optional remote service. Start the daemon under the ordinary agent's CODEX_HOME and connect
   // the TUI to it so the thread is visible in ChatGPT mobile. Best-effort: an
   // unavailable/older Codex install still gets a normal local terminal.
-  if (provider === 'codex' && opts.hive?.id) {
+  if (!prepared && provider === 'codex' && opts.hive?.id) {
     await enableCodexRemoteForSpawn(opts, opts.hive.id);
   }
+  // Provisioning/remote setup above may yield while the user cancels, the
+  // watchdog replaces the launch, or shutdown begins. Revalidate at the actual
+  // process boundary. No await may separate these guards from synchronous spawn.
+  if (allowQuit) return { ok: false, error: 'Operatus is shutting down' };
+  const finalBillingError = subscriptionLaunchError(provider);
+  if (finalBillingError) return { ok: false, error: finalBillingError };
+  const finalOwnershipError = gauntletSpawnOwnership.beforeSpawn(opts, prepared);
+  if (finalOwnershipError) return { ok: false, error: finalOwnershipError };
+  if (opts.hive?.id) ptyToAgent.set(opts.id, opts.hive.id);
   const res = ptyManager.spawn(opts, owner);
   if (res.ok) analytics.track('agent_spawned', { provider });
   syncKeepAwake(); // arm the power-save blocker while ≥1 agent PTY is alive (#18)
@@ -3077,6 +2968,8 @@ ipcMain.handle('integrations:remove', (_evt, payload: unknown) => {
 // plaintext back. Keys are materialized MAIN-ONLY at spawn (spawnAgentCore). Base
 // URLs are non-secret and ride HarnessConfig.providerBaseUrls (normal config save).
 ipcMain.handle('providerKey:set', (_evt, payload: unknown) => {
+  const billingError = apiInferenceError();
+  if (billingError) return { ok: false, error: billingError };
   const p = (payload ?? {}) as { backend?: unknown; key?: unknown };
   if (typeof p.backend !== 'string' || !(p.backend in BACKEND_KEY_ENV)) return { ok: false, error: 'unknown backend' };
   if (typeof p.key !== 'string' || !p.key) return { ok: false, error: 'key required' };
@@ -3092,6 +2985,8 @@ ipcMain.handle('providerKey:clear', (_evt, backend: unknown) => {
 // Probe an integration's reachability through the broker's own auth path (admin-only;
 // runs in main, so the secret is used but never returned — only the upstream status).
 ipcMain.handle('integrations:test', async (_evt, payload: unknown) => {
+  const billingError = apiInferenceError();
+  if (billingError) return { ok: false, error: billingError, code: 'subscriptions_only' };
   const p = (payload ?? {}) as { id?: unknown; path?: unknown };
   if (typeof p.id !== 'string' || !p.id) return { ok: false, error: 'id required' };
   const rec = integrations.getRecord(p.id);
@@ -3164,7 +3059,7 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[changeHome] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[changeHome] broker.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[changeHome] stopRouter:', e); }
-  try { hookServer.stop(); } catch (e) { console.error('[changeHome] hookServer.stop:', e); }
+  try { await hookServer.stop(); } catch (e) { console.error('[changeHome] hookServer.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[changeHome] slack.stop:', e); }
   try { stopWebhookServer(); } catch (e) { console.error('[changeHome] webhook.stop:', e); }
   try { memory.stop(); } catch (e) { console.error('[changeHome] memory.stop:', e); }
@@ -3196,7 +3091,7 @@ ipcMain.handle('config:changeHome', async (_evt, payload: unknown) => {
   }
 
   // Repoint config and relaunch so every service re-bootstraps against newHome.
-  // (Identical recovery path to resetAll — relaunch is the clean re-bind.)
+  // Relaunch is the clean re-bind; this path requires its own shutdown audit.
   allowQuit = true;
   writeConfig({ harnessHome: newHome });
   try { ptyManager.killAll(); } catch (e) { console.error('[changeHome] killAll:', e); }
@@ -3317,9 +3212,30 @@ ipcMain.handle('git:checkout', async (_evt, cwd: unknown, ref: unknown, detach: 
 // round trip at boot, in exchange for the roster being correct on first paint
 // instead of flashing an empty floor and then filling in.
 const roster = new RosterStore(() => readConfig().harnessHome);
-ipcMain.on('roster:readSync', (evt) => { evt.returnValue = roster.read(); });
-ipcMain.handle('roster:read', () => roster.read());
-ipcMain.handle('roster:write', (_evt, snap: unknown) => roster.write(snap));
+function readRosterProjection(saved = roster.read()): ReturnType<RosterStore['read']> {
+  if (!saved) return null;
+  const mark = (entry: unknown): unknown => {
+    if (!entry || typeof entry !== 'object') return entry;
+    const agent = entry as { id?: string; ptyId?: string };
+    for (const id of [agent.id, agent.ptyId]) {
+      if (typeof id !== 'string') continue;
+      try {
+        const launch = gauntletBackend?.store.findLaunch(id) ??
+          (id.startsWith('pty-') ? gauntletBackend?.store.findLaunch(id.slice(4)) : null);
+        if (launch) return { ...entry, lifecycleOwner: 'gauntlet', gauntletRunId: launch.runId };
+      } catch { /* no authority inference; main spawn gate fails closed */ }
+    }
+    return entry;
+  };
+  return { ...saved, agents: saved.agents.map(mark), archived: saved.archived.map(mark), restorable: saved.restorable.map(mark) };
+}
+ipcMain.on('roster:readSync', (evt) => { evt.returnValue = readRosterProjection(); });
+ipcMain.on('roster:bootSync', (evt) => {
+  const boot = roster.readBoot();
+  evt.returnValue = { ...boot, roster: readRosterProjection(boot.roster) };
+});
+ipcMain.handle('roster:read', () => readRosterProjection());
+ipcMain.handle('roster:write', (_evt, snap: unknown, expectedHome: unknown) => roster.writeForHome(snap, expectedHome));
 
 // ─── IPC: hive (multi-agent coordination) ───────────────────────────────────
 ipcMain.handle('hive:registry', () => hive.registry());
@@ -3468,39 +3384,50 @@ ipcMain.handle('history:search', (_evt, query: unknown, limit: unknown) =>
   persist.searchHistory(typeof query === 'string' ? query : '', typeof limit === 'number' ? limit : undefined));
 
 // ─── IPC: durable local Gauntlet Runs ───────────────────────────────────────
+ipcMain.handle('subscription:preflight', (_evt, provider: unknown) => {
+  if (provider !== 'claude' && provider !== 'codex') throw new Error('unsupported subscription provider');
+  return inspectSubscriptionSetup(provider);
+});
 ipcMain.handle('gauntlet:list', () => gauntlet().list());
+const capacityHandlers = desktopCapacity({ localWindow: liveWebContents, runner: () => isolatedGauntletRunner });
+ipcMain.handle('gauntlet:capacity', capacityHandlers.get);
+ipcMain.handle('gauntlet:capacity-configure', capacityHandlers.configure);
+ipcMain.handle('gauntlet:capacity-release', capacityHandlers.release);
+ipcMain.handle('gauntlet:priority', desktopPriority({localWindow:liveWebContents,
+  set:(runId,revision,level,note)=>{
+    const backend = gauntlet();
+    backend.store.priorities.set(runId,revision,level,note);
+    return publishGauntlet(backend.status(runId));
+  }
+}));
+ipcMain.handle('gauntlet:inspect-preparation', preparationInspector({
+  localWindow: liveWebContents, pending: runId => gauntlet().store.pendingPreparations(runId)
+}));
 ipcMain.handle('gauntlet:get', (_evt, runId: unknown) => {
   if (typeof runId !== 'string' || !runId) throw new Error('invalid run id');
   return gauntlet().status(runId);
 });
-ipcMain.handle('gauntlet:start', (_evt, payload: unknown) => {
-  const input = (payload ?? {}) as Partial<StartGauntletInput> & { assignments?: RoleSkillAssignment[] };
-  if (typeof input.repository !== 'string' || typeof input.objective !== 'string') throw new Error('repository and objective are required');
-  if (!hive.enabled()) throw new Error('Finish Operatus setup before starting a Gauntlet Run.');
-  const conductorId = hive.registry().godId ?? 'god';
-  if (!ptyForAgent(conductorId)) throw new Error('Conductor is still clocking in. Wait for Conductor to be ready, then start the run again.');
-  const snapshot = publishGauntlet(gauntlet().start({
-    repository: input.repository,
-    objective: input.objective,
-    baseRef: typeof input.baseRef === 'string' ? input.baseRef : undefined,
-    providers: input.providers,
-    limits: input.limits
-  }, Array.isArray(input.assignments) ? input.assignments : []));
-  try {
-    if (!deliverConductorOrientation(snapshot)) throw new Error('Conductor PTY became unavailable before orientation delivery');
-    return snapshot;
-  } catch (error) {
-    return publishGauntlet(gauntlet().infrastructureFailure(
-      snapshot.run.id,
-      `Conductor orientation could not be delivered: ${error instanceof Error ? error.message : String(error)}`,
-      false
-    ));
-  }
-});
+ipcMain.handle('gauntlet:start', desktopRunStarter({
+  localWindow: liveWebContents,
+  hold: () => allowQuit ? 'Operatus is shutting down' : isolatedGauntletLaunchError(process.platform),
+  backend: gauntlet,
+  runner: () => isolatedGauntletRunner,
+  publish: publishGauntlet,
+  onDispatchError: error => console.error('[gauntlet] native start dispatch failed:', error)
+}));
 ipcMain.handle('gauntlet:cancel', (_evt, runId: unknown, reason: unknown) => {
   if (typeof runId !== 'string') throw new Error('invalid run id');
   return publishGauntlet(gauntlet().cancel(runId, typeof reason === 'string' ? reason : 'Cancelled by human'));
 });
+ipcMain.handle('gauntlet:review-attention', (event, runId: unknown, version: unknown, reviewed: unknown, note: unknown, runtimeSequence: unknown = 0) => {
+  if (event.sender !== liveWebContents() || event.senderFrame !== event.sender.mainFrame) throw new Error('operator review requires the local desktop');
+  if (typeof runId !== 'string' || typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0 ||
+      typeof reviewed !== 'boolean' || typeof note !== 'string' || typeof runtimeSequence !== 'number' ||
+      !Number.isSafeInteger(runtimeSequence) || runtimeSequence < 0) throw new Error('invalid operator review');
+  return publishGauntlet(gauntlet().reviewAttention(runId,version,reviewed,note,runtimeSequence));
+});
+ipcMain.handle('gauntlet:candidate-handoff', desktopCandidateHandoff({localWindow:liveWebContents,
+  save:(runId,version,sha,reviewed,note)=>publishGauntlet(gauntlet().recordCandidateHandoff(runId,version,sha,reviewed,note))}));
 
 // ─── IPC: outbound-only hosted portal connection ──────────────────────────
 ipcMain.handle('remote-node:status', () => remoteNode?.status() ?? {
@@ -3539,9 +3466,13 @@ ipcMain.handle('skills:catalog', () => gauntlet().skills.listSources().flatMap((
   source.enabled ? gauntlet().skills.discover(source) : []));
 
 // ─── IPC: quit confirmation ─────────────────────────────────────────────────
-/** Tear the harness down and quit. Shared by the hard "kill all & quit" path
- *  and the closing-time conclusion (after the god confirmed the floor saved). */
+/** All approved quit routes converge on will-quit for one ordered teardown. */
 function teardownAndQuit(): void {
+  allowQuit = true;
+  app.quit();
+}
+
+async function shutdownRuntime(): Promise<void> {
   allowQuit = true;
   // Each teardown step is best-effort: a throw here (e.g. a dying child or a
   // half-torn-down socket) must never abort the quit or pop a crash dialog.
@@ -3553,19 +3484,31 @@ function teardownAndQuit(): void {
   try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[quit] stopWorkerWatcher:', e); }
   try { integrationBroker.stop(); } catch (e) { console.error('[quit] broker.stop:', e); }
   try { hive.stopRouter(); } catch (e) { console.error('[quit] stopRouter:', e); }
-  try { hookServer.stop(); } catch (e) { console.error('[quit] hookServer.stop:', e); }
+  try { await hookServer.stop(); } catch (e) { console.error('[quit] hookServer.stop:', e); }
   try { telemetry.stop(); } catch (e) { console.error('[quit] telemetry.stop:', e); }
   try { stopSlackServer(); } catch (e) { console.error('[quit] slack.stop:', e); }
   try { stopWebhookServer(); } catch (e) { console.error('[quit] webhook.stop:', e); }
   try { memory.stop(); } catch (e) { console.error('[quit] memory.stop:', e); }
   try { reflector.stop(); } catch (e) { console.error('[quit] reflector.stop:', e); }
-  try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
-  void gauntletControl?.stop();
+  // Stop admission and abort owned frozen checks before closing SQLite.
+  try { await operatorServer?.stop(); } catch (e) { console.error('[quit] operator MCP stop:', e); }
+  operatorServer = null;
+  const drain = gauntletControl?.stop();
+  const isolatedDrain = isolatedGauntletRunner?.close();
   gauntletControl = null;
-  try { gauntletBackend?.close(); } catch (e) { console.error('[quit] gauntlet.close:', e); }
   try { hive.stopAllProxyBridges(); } catch (e) { console.error('[quit] stopAllProxyBridges:', e); }
   try { ptyManager.killAll(); } catch (e) { console.error('[quit] killAll:', e); }
-  app.quit();
+  let drained = !drain;
+  try { drained = (await drain)?.drained ?? true; } catch (e) { console.error('[quit] control drain:', e); }
+  try { await isolatedDrain; } catch (e) { drained = false; console.error('[quit] isolated session drain:', e); }
+  if (drained) {
+    try { gauntletBackend?.close(); } catch (e) { console.error('[quit] gauntlet.close:', e); }
+  } else {
+    // Never close underneath unresolved work. The bounded final quit exits
+    // with the database intact; restart recovery handles in-flight runs.
+    console.error('[quit] control drain deadline exceeded; leaving Gauntlet database open until process exit');
+  }
+  try { persist.close(); } catch (e) { console.error('[quit] persist.close:', e); }
 }
 ipcMain.handle('app:confirmClose', () => {
   closingTime.cancel(); // a hard quit overrides a closing time in progress
@@ -3603,48 +3546,8 @@ hive.setRoutedObserver((msg, targets) => closingTime.onRouted(msg, targets));
 ipcMain.handle('app:startClosingTime', () => closingTime.start());
 ipcMain.handle('app:cancelClosingTime', () => closingTime.cancel());
 
-// ─── IPC: full reset (wipe data + config, relaunch into onboarding) ──────────
-ipcMain.handle('app:resetAll', () => {
-  allowQuit = true;
-  // Tear everything down first so nothing writes back into the dirs we wipe.
-  try { clearMissionTimers(); } catch (e) { console.error('[reset] clearMissionTimers:', e); }
-  try { clearContextTimers(); } catch (e) { console.error('[reset] clearContextTimers:', e); }
-  try { stopGauntletWatchdog(); } catch (e) { console.error('[reset] stopGauntletWatchdog:', e); }
-  try { remoteNode?.stop(); } catch (e) { console.error('[reset] remoteNode.stop:', e); }
-  try { stopWebhookDoneObserver(); } catch (e) { console.error('[reset] stopWebhookDoneObserver:', e); }
-  try { stopEphemeralWorkerWatcher(); } catch (e) { console.error('[reset] stopWorkerWatcher:', e); }
-  try { integrationBroker.stop(); } catch (e) { console.error('[reset] broker.stop:', e); }
-  try { hive.stopRouter(); } catch (e) { console.error('[reset] stopRouter:', e); }
-  try { hookServer.stop(); } catch (e) { console.error('[reset] hookServer.stop:', e); }
-  try { telemetry.stop(); } catch (e) { console.error('[reset] telemetry.stop:', e); }
-  try { stopSlackServer(); } catch (e) { console.error('[reset] slack.stop:', e); }
-  try { memory.stop(); } catch (e) { console.error('[reset] memory.stop:', e); }
-  try { reflector.stop(); } catch (e) { console.error('[reset] reflector.stop:', e); }
-  try { persist.close(); } catch (e) { console.error('[reset] persist.close:', e); }
-  void gauntletControl?.stop();
-  gauntletControl = null;
-  try { gauntletBackend?.close(); } catch (e) { console.error('[reset] gauntlet.close:', e); }
-  try { ptyManager.killAll(); } catch (e) { console.error('[reset] killAll:', e); }
-  // Erase the hive (Conductor's + every agent's memory, inboxes, tasks, board,
-  // git history) and the semantic-memory palace. Only these harness-created
-  // subdirs are removed — never the user's whole harnessHome folder.
-  for (const dir of [hive.root(), memory.palacePath()]) {
-    if (!dir) continue;
-    try { rmSync(dir, { recursive: true, force: true }); }
-    catch (e) { console.error('[reset] rm', dir, e); }
-  }
-  // The roster is the renderer's half of the same state, so it retires with the
-  // hive — archived into roster-backups/ rather than deleted, and cleared as the
-  // active file so re-selecting this folder later doesn't resurrect agents whose
-  // sessions and memory are gone.
-  try { roster.archive(); }
-  catch (e) { console.error('[reset] roster.archive:', e); }
-  // Back to first-run defaults, then relaunch clean so all in-memory services
-  // re-bootstrap from scratch and the renderer lands on onboarding.
-  resetConfig();
-  app.relaunch();
-  app.exit(0);
-});
+// Retain the IPC name for old renderers, but never run the unsafe legacy wipe.
+ipcMain.handle('app:resetAll', refuseUnsafeReset);
 
 // ─── IPC: token telemetry (real usage + est. cost from CC transcripts) ───────
 // Reconciler/fallback path: per-cwd transcript sum, now priced PER MODEL (cost
@@ -4431,6 +4334,8 @@ async function processSpawnRequest(filePath: string): Promise<void> {
   };
 
   const objective = typeof raw.objective === 'string' ? raw.objective.trim() : '';
+  const billingError = subscriptionLaunchError();
+  if (billingError) { fail(billingError); return; }
   if (!objective) { fail('missing "objective"'); return; }
 
   const reqId = (typeof raw.id === 'string' && raw.id.trim() ? raw.id.trim() : basename(filePath).replace(/\.json$/i, ''))
@@ -4445,6 +4350,7 @@ async function processSpawnRequest(filePath: string): Promise<void> {
 
   const command = typeof raw.command === 'string' && raw.command.trim() ? raw.command.trim() : (readConfig().defaultCommand ?? 'claude');
   const bin = command.split(/\s+/)[0] || command;
+  if (!isExecutableReference(bin)) { fail('Engine must be a plain command name or an absolute executable path.'); return; }
   // Missing-CLI → FAIL FAST. A headless worker has no human to watch an installer,
   // so we never run the cc49e1e install banner here — we reject and tell god.
   if (!ptyManager.isCommandAvailable(bin)) { fail(`engine CLI "${bin}" is not installed`); return; }
@@ -4552,7 +4458,7 @@ async function gcPreservedWorktrees(): Promise<void> {
       try { safe = await worktreeIsGcSafe(e.wtPath, e.baseBranch); }
       catch (err) { console.error('[worker gc] gc-safe check threw (keeping):', err); continue; }
       if (!safe.gc) continue; // keep — fail-safe
-      const r = await removeWorktree(e.origCwd, e.wtPath);
+      const r = await removeWorktree(e.origCwd, e.wtPath, e.workerId);
       if (!r.ok) { console.error(`[worker gc] removeWorktree failed (keeping ${e.workerId}):`, r.error); continue; }
       removeWorkerScratch(e.workerId);
       preservedWorktrees.delete(key);
@@ -4753,7 +4659,7 @@ function bootstrapHiveServices(): void {
   // finish long after the operator switched the public surface back off, and its
   // reply still belongs in the history.
   if ((readConfig().webhookTriggers ?? []).length > 0) startWebhookDoneObserver();
-  hookServer.start();
+  void hookServer.start().catch(e => console.error('[hive] hook server startup failed:', e));
   // Bind the telemetry collector BEFORE the renderer spawns any agent, then point
   // the hive at it so every subsequent spawn is instrumented. Best-effort — a bind
   // failure just leaves telemetry off (transcript reconciler stays). No breaker.start():
@@ -4863,6 +4769,14 @@ function onSystemResume(reason: string): void {
 }
 
 app.whenReady().then(async () => {
+  // Branding a development executable must not move its existing data profile.
+  const profilePath = app.getPath('userData');
+  app.setName('Operatus');
+  app.setPath('userData', profilePath);
+  if (process.platform === 'darwin' && !app.isPackaged) {
+    const dockIcon = join(app.getAppPath(), 'build', 'icon-macos.png');
+    if (existsSync(dockIcon)) app.dock?.setIcon(dockIcon);
+  }
   // Realtime Conductor mic-gate hygiene (rt-8 / Pam rt-10 nit): the voice session
   // opens the mic permission gate by persisting realtimeVoiceEnabled=true and
   // closes it on disconnect — but a hard crash/reload mid-session skips that
@@ -4903,7 +4817,8 @@ app.whenReady().then(async () => {
     gauntletBackend = new LocalGauntletBackend({
       stateRoot: app.getPath('userData'),
       primitiveRoot,
-      primitiveExpectedCommit: primitiveOverride ? null : undefined
+      primitiveExpectedCommit: primitiveOverride ? null : undefined,
+      onEvidence: (snapshot) => publishGauntlet(snapshot)
     });
     gauntletBackend.open();
     gauntletControl = new GauntletControlServer(app.getPath('userData'), gauntletBackend, (snapshot) => {
@@ -4911,11 +4826,43 @@ app.whenReady().then(async () => {
       void advanceGauntlet(snapshot.run.id);
     });
     await gauntletControl.start();
+    isolatedGauntletRunner = new IsolatedGauntletRunner(gauntletBackend, createIsolatedProviderFactory({
+      root: join(app.getPath('userData'), 'isolated-sessions'), helperSource: gauntletHelperPath(), nodePath: process.execPath,
+      skills: gauntletBackend.skills,
+      reviewEvidenceRoot: join(app.getPath('userData'), 'review-evidence'),
+      socketPath: () => { if (!gauntletControl) throw Error('Control service unavailable'); return gauntletControl.info().socketPath; },
+      assertAdmissionOpen: () => { const held = isolatedGauntletLaunchError(process.platform); if (allowQuit || held) throw Error(held || 'Application is quitting'); }
+    }), () => allowQuit ? 'Application is quitting' : isolatedGauntletLaunchError(process.platform), publishGauntlet, capacity => {
+      for (const win of allWindows) if (!win.isDestroyed()) win.webContents.send('gauntlet:capacity-changed', capacity);
+    });
   } catch (e) {
     try { await gauntletControl?.stop(); } catch { /* best effort */ }
     gauntletControl = null;
+    try { gauntletBackend?.close(); } catch { /* failed startup still releases its database */ }
     gauntletBackend = null;
     console.error('[gauntlet] open failed:', e);
+  }
+  // Opt-in external operator surface. Its failure must not take down the UI or
+  // grant access to the separate role-scoped control service.
+  try {
+    const policy = readOperatorPolicy(app.getPath('userData'));
+    if (policy && gauntletBackend && isolatedGauntletRunner) {
+      operatorServer = new OperatorServer(app.getPath('userData'), createOperatorService({
+        policy, backend: gauntletBackend, runner: isolatedGauntletRunner,
+        hold: () => allowQuit ? 'Application is quitting' : isolatedGauntletLaunchError(process.platform),
+        publish: publishGauntlet,
+        conductor: () => {
+          const config = readConfig();
+          return {conductor:{provider:config.godProvider ?? 'codex',model:config.godModel},
+            implementer:{provider:DEFAULT_ROLE_PROVIDERS.implementer},
+            repairer:{provider:DEFAULT_ROLE_PROVIDERS.repairer},critic:{provider:DEFAULT_ROLE_PROVIDERS.critic}};
+        }
+      }));
+      await operatorServer.start();
+    }
+  } catch (e) {
+    await operatorServer?.stop(); operatorServer = null;
+    console.error('[operator-mcp] unavailable:', e instanceof Error ? e.message : 'setup failed');
   }
   // Auto-update from GitHub releases (packaged builds only; gated on the
   // `autoUpdate` config flag). Download-in-background + restart-to-apply toast;
@@ -5017,17 +4964,9 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Final analytics flush (session_ended + drain the send queue), bounded so a
-// hung network can never wedge quit: preventDefault ONCE, race the flush
-// against a short timeout, then re-enter quit with the latch set.
-let analyticsFlushed = false;
-app.on('will-quit', (e) => {
-  if (analyticsFlushed) return;
-  analyticsFlushed = true;
-  e.preventDefault();
-  const finish = (): void => app.quit();
-  Promise.race([
-    analytics.endSession(),
-    new Promise<void>((r) => setTimeout(r, 1200))
-  ]).then(finish, finish);
-});
+// Optional analytics cannot wedge quit, including when disabled (immediate
+// resolution). Resume only after the cancelled native event has unwound.
+app.on('will-quit', createFinalQuitBarrier(async () => {
+  await shutdownRuntime();
+  await analytics.endSession();
+}, () => app.quit(), 5000));

@@ -1,0 +1,25 @@
+/* Same faces as the original desktop design, bundled for offline startup.
+ * Unmodified font files adopted from stable Munder commit 41ea4c37b1a21dee7b9c82e9f0e60f43032634c5.
+ * Copyright/OFL notices ship in public/third-party-fonts.txt and the build output.
+ * Latin subsets only; other scripts use the existing system fallback stacks. */
+@font-face {
+  font-family: 'Press Start 2P';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../assets/fonts/press-start-2p-latin-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/inter-latin-var.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('../assets/fonts/jetbrains-mono-latin-var.woff2') format('woff2');
+}

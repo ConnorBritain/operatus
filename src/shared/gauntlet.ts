@@ -53,18 +53,35 @@ export interface GauntletRun {
   backend: 'local' | 'roadmap';
   repository: string;
   requestedObjective: string;
+  /** Naming stem; legacy launches used this as their shared candidate ref. */
   branch: string;
   baseSha: string;
   currentArtifactSha: string | null;
   currentLaunchId: string | null;
+  /** Run-scoped lead identity, independent of the current fresh worker. */
+  conductorLaunchId?: string;
   currentCriticReportId: string | null;
   contract: FrozenRunContract | null;
   status: GauntletStatus;
   repairRound: number;
+  /** Main-owned continuation of an already counted repair round. Optional for legacy snapshots. */
+  pendingRepairRetry?: { launchId: string; artifactSha: string; round: number } | null;
   infrastructureRetries: number;
   providers: Record<GauntletRole, { provider: AgentProvider; model?: string }>;
   limits: GauntletLimits;
   stopReason: string | null;
+  /** Human queue disposition only. Never changes the terminal verdict or bar. */
+  operatorReview?: { reviewed: boolean; note: string; at: number; runtimeSequence?: number };
+  /** Mutable human attention annotation, never scheduling or protocol authority. */
+  operatorPriority?: OperatorPriority;
+  /** Human disposition of an exact passed candidate; never an integration receipt. */
+  candidateHandoff?: { artifactSha: string; reviewed: boolean; note: string; at: number };
+  /** Read projection of the append-only runtime journal, not protocol version. */
+  runtimeRevision?: number;
+  runtimeAttention?: { sequence: number; count: number };
+  /** Incomplete pre-filesystem preparations, projected from SQLite, not launches. */
+  preparationRevision?: number;
+  preparationPending?: number;
   version: number;
   createdAt: number;
   updatedAt: number;
@@ -85,6 +102,12 @@ export interface AgentLaunch {
   model?: string;
   sessionId: string;
   worktreePath: string;
+  /** Assigned candidate ref. Absent on detached Critics and legacy launches. */
+  candidateBranch?: string;
+  /** Main-produced exact-commit review packet; absent on older launches. */
+  reviewEvidence?: {
+    directory: string; baseSha: string; artifactSha: string; contractDigest: string; patchSha256: string;
+  };
   expectedSha: string;
   tokenHash: string;
   capability: CapabilityReceipt;
@@ -105,6 +128,23 @@ export interface Artifact {
   createdAt: number;
 }
 
+/** Observation of retained work, never an accepted artifact or a verdict. */
+export interface WorkspacePreservationReceipt {
+  id: string;
+  requestId: string;
+  runId: string;
+  launchId: string;
+  worktreePath: string;
+  candidateBranch: string | null;
+  expectedSha: string;
+  observedSha: string | null;
+  dirty: boolean | null;
+  outcome: 'pending' | 'preserved' | 'missing' | 'failed';
+  reason: string;
+  error: string | null;
+  createdAt: number;
+}
+
 export interface CheckReceipt {
   checkId: string;
   command: string;
@@ -112,6 +152,13 @@ export interface CheckReceipt {
   timedOut: boolean;
   durationMs: number;
   output: string;
+  execution?: {
+    boundary: 'macos-seatbelt-offline-v1';
+    cwd: string;
+    scratch: string;
+    profileSha256: string;
+    network: 'denied';
+  };
 }
 
 export interface CriticFinding {
@@ -213,6 +260,9 @@ export interface RoleSkillAssignment {
 }
 
 export type GauntletEvent =
+  | { type: 'CONDUCTOR_PREPARED'; at: number; launchId: string }
+  | { type: 'OPERATOR_REVIEW_RECORDED'; at: number; reviewed: boolean; note: string; runtimeSequence?: number }
+  | { type: 'CANDIDATE_HANDOFF_RECORDED'; at: number; artifactSha: string; reviewed: boolean; note: string }
   | { type: 'BAR_FROZEN'; at: number; contract: FrozenRunContract }
   | { type: 'IMPLEMENTER_LAUNCHED'; at: number; launchId: string; expectedSha: string }
   | { type: 'ARTIFACT_RECORDED'; at: number; launchId: string; role: 'implementer' | 'repairer'; artifactSha: string; parentSha: string }
@@ -220,12 +270,15 @@ export type GauntletEvent =
   | { type: 'CRITIC_REPORTED'; at: number; reportId: string; launchId: string; artifactSha: string; contractDigest: string; verdict: GauntletVerdict }
   | { type: 'LEAD_ACKNOWLEDGED'; at: number; acknowledgmentId: string; reportId: string; artifactSha: string; contractDigest: string; decision: LeadDecision }
   | { type: 'REPAIR_LAUNCHED'; at: number; launchId: string; expectedSha: string }
-  | { type: 'HUMAN_ESCALATED'; at: number; reason: string }
+  | { type: 'HUMAN_ESCALATED'; at: number; reason: string; conductorLaunchId?: string }
   | { type: 'INFRASTRUCTURE_FAILED'; at: number; reason: string; retryable: boolean }
-  | { type: 'CANCELLED'; at: number; reason: string };
+  | { type: 'CANCELLED'; at: number; reason: string; conductorLaunchId?: string };
 
 export interface GauntletRunSnapshot {
   run: GauntletRun;
+  pendingPreparations?: WorkspacePreparation[];
+  operatorPriorityHistory?: OperatorPriority[];
+  preservations?: WorkspacePreservationReceipt[];
   artifacts: Artifact[];
   launches: AgentLaunch[];
   reports: CriticReport[];
@@ -233,6 +286,81 @@ export interface GauntletRunSnapshot {
   repairPackets: RepairPacket[];
   events: Array<{ sequence: number; event: GauntletEvent }>;
   skillLock?: SkillLockReceipt;
+  runtimeObservations?: RuntimeObservation[];
+}
+
+export interface WorkspacePreparation {
+  launchId: string; runId: string; role: 'implementer' | 'repairer' | 'critic';
+  repository: string; expectedSha: string; contractDigest: string;
+  worktreePath: string; candidateBranch: string | null; reviewEvidencePath: string | null;
+  createdAt: number;
+}
+
+export interface OperatorPriority {
+  revision: number; level: 'low' | 'normal' | 'high'; note: string; at: number;
+}
+
+/** Point-in-time read-only diagnostic, not a recovery or artifact receipt. */
+export interface PreparationInspection {
+  runId: string; launchId: string; observedAt: number;
+  state: 'missing' | 'redirected' | 'matching' | 'changed' | 'foreign_repository' | 'unavailable';
+  observedSha: string | null; observedBranch: string | null; dirty: boolean | null;
+  evidenceDirectory: 'not_applicable' | 'missing' | 'redirected' | 'present' | 'unavailable';
+}
+
+/** Main-observed lifecycle evidence, separate from protocol verdicts. Never
+ * accepts terminal output as a completion or a PID as a restart capability. */
+export interface ToolActivity {
+  type: 'tool_activity'; ordinal: number;
+  activity: 'reading' | 'searching' | 'editing' | 'executing' | 'tool';
+  stage: 'requested' | 'result'; outcome?: 'ok' | 'error';
+}
+interface SubscriptionEvidenceBase {
+  type: 'subscription_admission';
+  source: 'provider-metadata' | 'injected-dependencies';
+  executableVersion: string;
+  executableSha256: string;
+  model: string;
+  accountHash: string;
+  checkedAt: number;
+  validUntil: number;
+  /** Historical component evidence, never a reusable admission capability. */
+  launchAllowed: false;
+}
+export type SubscriptionAdmissionEvidence = SubscriptionEvidenceBase & (
+  {component:'claude-max-account-v1';provider:'claude';organizationHash:string;plan:'max';extraUsage:'disabled';metadataObservedAt?:number} |
+  {component:'codex-subscription-account-v1';provider:'codex';plan:'plus'|'pro';credits:'none-observed'|'available'|'unknown';
+    topUps:'not-programmatically-verified';companionSha256:string}
+);
+/** Transport counts only. No model output, commands, paths or credentials. */
+export interface NativeOutputObservation {
+  receivedBytes: number;
+  stdoutBytes: number;
+  stderrBytes: number;
+  stdoutPreviewTruncated: boolean;
+  stderrPreviewTruncated: boolean;
+}
+
+/** Actual provider identities, not Operatus session IDs or resume authority. */
+export interface NativeSessionIdentity {
+  type: 'native_identity'; provider: 'codex'; threadId: string; turnId: string | null;
+}
+
+export type RuntimeEvent = ToolActivity | SubscriptionAdmissionEvidence | NativeSessionIdentity
+  | { type: 'process_started'; pid: number; model: string; profileSha256: string; boundarySha256: string }
+  | { type: 'process_exited'; reason: string; exitCode: number | null; processExited: boolean;
+      gatewayRevocation: 'confirmed' | 'unconfirmed'; descendantsQuiescent: false; output?: NativeOutputObservation }
+  | { type: 'delivery_queued'; messageId: string; purpose: 'orientation' | 'acknowledgment'; promptSha256: string; reportId: string | null }
+  | { type: 'delivery_completed'; messageId: string; ok: boolean; resultSha256: string }
+  | { type: 'recovery_interrupted' };
+
+export interface RuntimeObservation {
+  sequence: number;
+  runId: string;
+  launchId: string;
+  sessionId: string;
+  at: number;
+  event: RuntimeEvent;
 }
 
 export interface StartGauntletInput {

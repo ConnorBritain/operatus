@@ -11,9 +11,10 @@
  * tasks) was right there and intact. A file keyed on `harnessHome` is shared by
  * both, because it is addressed by path rather than by page origin.
  *
- * localStorage is still written exactly as before. This file is an ADDITION, not
- * a migration away from it — if anything here fails, the renderer falls back to
- * the storage it has always used and nothing is lost.
+ * The renderer also caches one versioned snapshot bound to this home. Only a
+ * cache with matching ownership may be used when the file is unavailable.
+ * Unscoped legacy caches remain intact, but require explicit recovery rather
+ * than silently assigning their agents and queues to another home.
  *
  * Durability rules, in order of how much they matter:
  *   1. Never lose a roster. Every write first copies the previous file into
@@ -24,7 +25,7 @@
  *   3. Never let an empty renderer erase a full roster. See `write`.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 
 /** What the renderer mirrors to disk. The inner agent shape is deliberately
  *  opaque here — the renderer's store owns it, and repeating it would mean
@@ -73,9 +74,8 @@ function entryCount(s: RosterSnapshot): number {
  * tests make their own.
  */
 export class RosterStore {
-  /** Set once this store has written successfully. The empty-guard applies only
-   *  before that: see `write`. */
-  private wrote = false;
+  /** Tracks the first-write guard independently for each home. See `write`. */
+  private readonly writtenHomes = new Set<string>();
   /** Disambiguates backups made inside the same millisecond. Two writes in one
    *  tick used to produce the same filename, and the second silently replaced
    *  the first — a backup folder that quietly loses backups is worse than none. */
@@ -84,14 +84,21 @@ export class RosterStore {
   constructor(private readonly getHome: () => string | null) {}
 
   private home(): string | null {
-    try { return this.getHome(); } catch { return null; }
+    try { const home = this.getHome(); return home ? resolve(home) : null; } catch { return null; }
   }
 
-  /** The stored roster, or null when there isn't one (or it can't be parsed).
-   *  Null means "no opinion" — the renderer then keeps using localStorage, so a
-   *  corrupt file degrades to the old behaviour instead of to an empty floor. */
+  /** The stored roster, or null when missing/unreadable. The renderer may then
+   *  use a validated cache belonging to the same home, never an unscoped one. */
   read(): RosterSnapshot | null {
+    return this.readAt(this.home());
+  }
+
+  readBoot(): { home: string | null; roster: RosterSnapshot | null } {
     const home = this.home();
+    return { home, roster: this.readAt(home) };
+  }
+
+  private readAt(home: string | null): RosterSnapshot | null {
     if (!home) return null;
     try {
       const p = rosterPath(home);
@@ -116,24 +123,34 @@ export class RosterStore {
    * so even a wrong call here is recoverable.
    */
   write(snap: unknown): RosterWriteResult {
+    return this.writeAt(this.home(), snap);
+  }
+
+  writeForHome(snap: unknown, expectedHome: unknown): RosterWriteResult {
     const home = this.home();
+    if (!home || typeof expectedHome !== 'string' || expectedHome !== home) return { ok: false, error: 'roster home changed; reload before saving' };
+    return this.writeAt(home, snap);
+  }
+
+  private writeAt(home: string | null, snap: unknown): RosterWriteResult {
     if (!home) return { ok: false, error: 'no harnessHome' };
     if (!isSnapshot(snap)) return { ok: false, error: 'invalid snapshot' };
     const p = rosterPath(home);
     try {
       mkdirSync(home, { recursive: true });
-      const existing = this.read();
+      const existing = this.readAt(home);
+      const wrote = this.writtenHomes.has(home);
 
-      if (!this.wrote && existing && entryCount(existing) > 0 && entryCount(snap) === 0) {
+      if (!wrote && existing && entryCount(existing) > 0 && entryCount(snap) === 0) {
         // Back it up anyway: what is on disk right now is exactly what we are
         // protecting, and a copy of it costs nothing.
         this.backup(home, p, 'declined');
-        this.wrote = true;
+        this.writtenHomes.add(home);
         console.warn('[roster] refused to overwrite a non-empty roster with an empty one');
         return { ok: false, skipped: 'empty-first-write' };
       }
 
-      this.backup(home, p, this.wrote ? 'write' : 'run-start');
+      this.backup(home, p, wrote ? 'write' : 'run-start');
 
       const body: RosterSnapshot = {
         version: 1,
@@ -149,7 +166,7 @@ export class RosterStore {
       const tmp = `${p}.tmp`;
       writeFileSync(tmp, JSON.stringify(body, null, 2), 'utf8');
       renameSync(tmp, p);
-      this.wrote = true;
+      this.writtenHomes.add(home);
       return { ok: true };
     } catch (e) {
       try { rmSync(`${p}.tmp`, { force: true }); } catch { /* noop */ }

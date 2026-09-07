@@ -5,7 +5,7 @@ import { Icon, type IconName } from './Icon';
 import { SpritePortrait } from './SpritePortrait';
 import { ProviderLogo } from './ProviderLogo';
 import { AGENT_PROVIDER_PRESETS, modelsForProvider, type AgentProvider, type HarnessConfig } from '@/store/config';
-import { canReceiveInbox, providerPreset } from '@shared/agentProvider';
+import { canReceiveInbox, DEFAULT_CONDUCTOR_PROVIDER, DEFAULT_CONDUCTOR_MODEL } from '@shared/agentProvider';
 
 export interface OnboardingWizardProps {
   onComplete: (config: HarnessConfig) => void;
@@ -28,9 +28,9 @@ interface Feature {
 const FEATURES: Feature[] = [
   {
     icon: 'mcp',
-    label: 'TEN ENGINES, ONE OFFICE',
-    desc: 'Claude Code, Codex, Grok, Kimi, Antigravity, Qwen, OpenCode, Crush, pi & Copilot — live agents on one floor.',
-    descPlain: 'Ten AI assistants — Claude, Codex, Gemini, Grok and more — working side by side in one shared office.',
+    label: 'SUBSCRIPTIONS, ONE OFFICE',
+    desc: 'Claude Code and Codex subscription sessions, with role-specific admission checked before launch.',
+    descPlain: 'Use your Claude and ChatGPT subscriptions. Other engines and paid API routes are not enabled.',
     tint: 'var(--cth-lilac-light)', edge: 'var(--cth-lilac)'
   },
   {
@@ -92,9 +92,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   // Anonymous usage stats (TELEMETRY.md). Default ON (opt-out); persisted by
   // finish() so unchecking before finishing means nothing is ever sent.
   const [shareStats, setShareStats] = useState<boolean>(true);
-  const [godProvider, setGodProvider] = useState<AgentProvider>('claude');
+  const [godProvider, setGodProvider] = useState<AgentProvider>(DEFAULT_CONDUCTOR_PROVIDER);
   const [godModel, setGodModel] = useState<string | undefined>(
-    providerPreset('claude').recommendedOrchestratorModel
+    DEFAULT_CONDUCTOR_MODEL
   );
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
@@ -370,23 +370,19 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   <span style={{ flexShrink: 0, marginTop: 1 }}><Icon name="sparkle" /></span>
                   <span>
                     {plain ? (
-                      <>A <strong>CLI agent</strong> is an AI coding assistant that runs on your
-                      computer — popular ones are Claude Code (Anthropic), Codex (OpenAI) and
-                      Antigravity (Google Gemini). <strong>Your clone</strong> is the always-on
-                      one that runs your whole office. We recommend Claude Code on Opus 4.8 (1M).
-                      You can add or switch the others later.</>
+                      <>Choose your preferred <strong>Conductor</strong> engine and model.
+                      Your default is Codex with GPT-6 Astra. Operatus uses Claude Code and
+                      Codex subscription logins only. Model choices do not enable paid API access.</>
                     ) : (
-                      <>Each option is a <strong>CLI engine</strong> you have installed (Claude Code,
-                      Codex, Antigravity/Gemini, or a local proxy like Qwen).
-                      <strong> Your clone</strong> (Conductor) is the engine that orchestrates the whole
-                      hive. Recommended: Claude Code · Opus 4.8 · 1M — other providers can be wired
-                      per agent later.</>
+                      <>These are <strong>subscription CLI engines</strong>, not proof of installation
+                      or authentication. Default preference: Codex · GPT-6 Astra. Each launch must
+                      still pass the independent subscription and role checks.</>
                     )}
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {AGENT_PROVIDER_PRESETS.filter((p) => canReceiveInbox(p.id)).map((p) => {
+                  {AGENT_PROVIDER_PRESETS.filter((p) => (p.id === 'claude' || p.id === 'codex') && canReceiveInbox(p.id)).map((p) => {
                     const sel = godProvider === p.id;
                     return (
                       <label key={p.id} style={{
@@ -425,13 +421,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                             </span>
                           )}
                         </span>
-                        {p.id === 'claude' && (
+                        {p.id === DEFAULT_CONDUCTOR_PROVIDER && (
                           <span style={{
                             fontSize: 10, padding: '1px 5px', lineHeight: '16px',
                             background: 'var(--cth-lemon)',
                             boxShadow: 'inset 0 0 0 1px var(--cth-ink-300)',
                             fontFamily: 'var(--cth-font-display)', flexShrink: 0
-                          }}>RECOMMENDED</span>
+                          }}>DEFAULT</span>
                         )}
                       </label>
                     );
@@ -449,7 +445,9 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     ))}
                   </select>
                   <div style={{ fontSize: 12, color: 'var(--cth-ink-500)' }}>
-                    This only sets Conductor's engine. You can run other providers per agent later.
+                    New Gauntlets use this Conductor preference. Claude and Codex can lead;
+                    Implementer and Repairer use Claude, and the independent Critic uses its
+                    own fresh session. Every launch still requires subscription admission.
                   </div>
                 </div>
               </>

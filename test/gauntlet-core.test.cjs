@@ -202,8 +202,15 @@ test('local control socket rejects wrong authority and accepts a bounded Conduct
   const dir = mkdtempSync(join(tmpdir(), 'operatus-control-'));
   const snapshot = { run: { id: 'run-1', status: 'awaiting_implementation' } };
   const backend = {
-    freeze(runId, payload) {
+    withConductorAuthority(runId, launchId, token, command) {
       assert.equal(runId, 'run-1');
+      assert.equal(launchId, 'lead-1');
+      if (token !== 'run-scoped-fixture-token') throw Error('invalid Conductor authority');
+      return command();
+    },
+    freeze(runId, payload, launchId) {
+      assert.equal(runId, 'run-1');
+      assert.equal(launchId, 'lead-1');
       assert.equal(payload.objective, 'frozen');
       return snapshot;
     }
@@ -216,7 +223,8 @@ test('local control socket rejects wrong authority and accepts a bounded Conduct
   const malformed = await socketRawRequest(endpoint.socketPath, '{not-json}\n');
   assert.equal(malformed.ok, false);
   assert.match(malformed.error, /JSON/);
-  const good = await socketRequest(endpoint.socketPath, { action: 'freeze', runId: 'run-1', token: endpoint.conductorToken, payload: { objective: 'frozen' } });
+  assert.equal(endpoint.conductorToken, undefined);
+  const good = await socketRequest(endpoint.socketPath, { action: 'freeze', runId: 'run-1', launchId: 'lead-1', token: 'run-scoped-fixture-token', payload: { objective: 'frozen' } });
   assert.equal(good.ok, true);
   assert.equal(transitioned, snapshot);
   await server.stop();

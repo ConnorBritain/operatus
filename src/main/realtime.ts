@@ -15,6 +15,7 @@
  * Branch feat/realtime-michael. See board.md "🎙 REALTIME MICHAEL".
  */
 import { ipcMain } from 'electron';
+import { apiInferenceError } from '../shared/billingPolicy';
 import { getSecret, hasSecret } from './integrations';
 
 /** Mirrors `providerKeyRef('openai')` in src/main/index.ts (BACKEND_KEY_ENV maps
@@ -46,12 +47,15 @@ export type MintResult =
  *  Realtime Conductor voice toggle in the renderer, the way `hasGroqKey` gates the
  *  Free Flow mic button. */
 export function hasOpenAiKey(): boolean {
+  if (apiInferenceError()) return false;
   return hasSecret(OPENAI_KEY_REF);
 }
 
 /** Mint a short-lived ephemeral client secret for a realtime WebRTC session. The
  *  real OpenAI key is decrypted MAIN-ONLY here and is NEVER part of the result. */
 export async function mintRealtimeToken(model: string = REALTIME_MODEL): Promise<MintResult> {
+  const billingError = apiInferenceError();
+  if (billingError) return { ok: false, error: billingError, code: 'subscriptions_only' };
   const key = getSecret(OPENAI_KEY_REF);
   if (!key) {
     return { ok: false, error: 'no OpenAI API key set — add one in Settings → Voice', code: 'no_key' };

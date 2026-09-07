@@ -22,6 +22,7 @@ import { RemoteAccessSettings } from './RemoteAccessSettings';
 import { REALTIME_MODEL } from '@shared/realtimePricing';
 import { RealtimeDevicePicker } from '@/realtime/DevicePicker';
 import { CostHud } from '@/realtime/CostHud';
+import { RESET_UNAVAILABLE_REASON } from '@shared/resetPolicy';
 
 export interface SettingsModalProps {
   config: HarnessConfig;
@@ -140,18 +141,6 @@ authorizes new work, the token only reads one task's status. Keep both private.
 Each webhook checks bodies against its own JSON schema — edit that in the
 Triggers tab of Conductor's Command Center.`;
 
-/** Clear every renderer-side persisted key so a relaunch starts truly empty. */
-function clearLocalState(): void {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (k && k.startsWith('cth.')) keys.push(k);
-    }
-    for (const k of keys) window.localStorage.removeItem(k);
-  } catch { /* noop */ }
-}
-
 // v0.3.4 redesign: six tabs, one topic each. 'AI Engines' folded into
 // Agents & Models; MCP + Slack + webhook + REST live together in Connections;
 // voice gets its own tab; Danger Zone became a red row at the bottom of General.
@@ -159,7 +148,6 @@ export type Section = 'General' | 'Agents & Models' | 'Autonomy & Budgets' | 'Co
 const NAV_SECTIONS: Section[] = ['General', 'Agents & Models', 'Autonomy & Budgets', 'Connections', 'Voice', 'Memory & Knowledge'];
 
 export function SettingsModal({ config, onClose, initialSection }: SettingsModalProps) {
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [activeSection, setActiveSection] = useState<Section>(initialSection ?? 'General');
 
@@ -662,14 +650,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
     void saveFreeflow(next);
   };
 
-  const reset = async () => {
-    setBusy(true);
-    clearLocalState();
-    // Wipes hive + palace, resets config, and relaunches into onboarding.
-    // The app exits, so this never resolves - no need to clear `busy`.
-    await window.cth.resetAll();
-  };
-
   // --- Change home folder ---
   /** Pick a new folder, then open the move-vs-fresh sub-modal. */
   const pickNewHome = async () => {
@@ -685,10 +665,8 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
   const applyChangeHome = async () => {
     if (!changeHome) return;
     setChangeBusy(true); setChangeErr('');
-    // Moving copies the hive (incl. its .git) + palace, so the new home owns the
-    // same renderer-side roster - keep localStorage. A 'fresh' home starts empty,
-    // so clear the renderer cache to match.
-    if (changeMode === 'fresh') clearLocalState();
+    // Cache ownership is per home. Neither move nor fresh may erase the source
+    // cache before main has completed the operation (or after a rejected one).
     try {
       const res = await window.cth.changeHome(changeHome, changeMode);
       if (!res.ok) { setChangeErr(res.error ?? 'Could not change the home folder.'); setChangeBusy(false); }
@@ -701,9 +679,7 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
 
   const modalTitle = changeHome
     ? 'CHANGE HOME FOLDER'
-    : confirming
-      ? 'RESET EVERYTHING?'
-      : 'SETTINGS';
+    : 'SETTINGS';
 
   return (
     <div
@@ -782,36 +758,6 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                 </PixelButton>
                 <PixelButton variant="primary" size="md" onClick={applyChangeHome} disabled={changeBusy}>
                   {changeBusy ? 'applying...' : (changeMode === 'move' ? 'move & restart' : 'switch & restart')}
-                </PixelButton>
-              </div>
-            </div>
-
-          /* === Reset confirmation screen === */
-          ) : confirming ? (
-            <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                <div style={{
-                  width: 32, height: 32,
-                  background: 'var(--cth-coral-light)',
-                  boxShadow: 'inset 0 0 0 1.5px var(--cth-ink-500)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <Icon name="bell" />
-                </div>
-                <div style={{ flex: 1, fontSize: 15, lineHeight: '22px', color: 'var(--cth-ink-700)' }}>
-                  This permanently erases all of Conductor's memories and the entire hive,
-                  and cannot be undone. Any running sessions will be terminated and the app
-                  will relaunch into onboarding. Are you sure?
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <PixelButton variant="secondary" size="md" onClick={() => setConfirming(false)} disabled={busy}>
-                  cancel
-                </PixelButton>
-                <PixelButton variant="destructive" size="md" onClick={reset} disabled={busy}>
-                  {busy ? 'resetting...' : 'erase everything & restart'}
                 </PixelButton>
               </div>
             </div>
@@ -1962,15 +1908,13 @@ export function SettingsModal({ config, onClose, initialSection }: SettingsModal
                       <div style={{
                         fontFamily: 'var(--cth-font-display)', fontSize: 10, lineHeight: '14px',
                         color: '#6E1423'
-                      }}>DANGER ZONE</div>
+                      }}>DATA RETENTION</div>
                       <p style={{ margin: 0, fontSize: 13, lineHeight: '20px', color: 'var(--cth-ink-700)' }}>
-                        Reset wipes Conductor's memories, the entire hive (every agent, message,
-                        task, and the board), the semantic-memory palace, and all settings -
-                        then takes you back to onboarding.
+                        {RESET_UNAVAILABLE_REASON}
                       </p>
                       <div>
-                        <PixelButton variant="destructive" size="md" onClick={() => setConfirming(true)}>
-                          reset &amp; start over
+                        <PixelButton variant="secondary" size="md" disabled title={RESET_UNAVAILABLE_REASON}>
+                          reset unavailable
                         </PixelButton>
                       </div>
                     </div>

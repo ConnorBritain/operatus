@@ -21,16 +21,72 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install native and JavaScript dependencies
         run: npm ci
       - name: Install portal dependencies
         run: npm ci --prefix apps/portal
+      - name: Install local MCP dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --prefix packages/operatus-mcp
+      - name: Local MCP protocol and operator authority without inference
+        run: |
+          npm test --prefix packages/operatus-mcp
+          ELECTRON_RUN_AS_NODE=1 npx electron --test test/operator-mcp.test.cjs
       - name: Typecheck main, preload, and renderer
         run: npm run typecheck
+      - name: Subscription-only safety interlock
+        run: npm run test:billing
+      - name: Ambient agent environment exclusion
+        run: node --test test/agent-environment.test.cjs
+      - name: Subscription account admission with synthetic transport
+        run: node --test test/claude-account-admission.test.cjs test/codex-account-admission.test.cjs test/claude-subscription-gateway.test.cjs
+      - name: Executable identity and copy failure preservation
+        run: node --test test/executable-identity.test.cjs
+      - name: Codex isolated session and fixed transport without inference
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/codex-fresh-session.test.cjs test/codex-response-stream.test.cjs test/codex-subscription-gateway.test.cjs test/codex-subscription-transport.test.cjs test/gauntlet-native-identity.test.cjs test/gauntlet-provider-factory.test.cjs
+      - name: Isolated fresh worker and persistent Conductor transports without inference
+        run: node --test test/native-output.test.cjs test/claude-fresh-session.test.cjs test/claude-conductor-session.test.cjs test/gauntlet-desktop-start.test.cjs
+      - name: Desktop copy and Mac icon regression checks
+        run: node --test test/desktop-branding.test.cjs test/final-quit.test.cjs
+      - name: Subscription diagnostics and offline check boundary
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/subscription-preflight.test.cjs test/subscription-profile.test.cjs test/subscription-sandbox.test.cjs test/native-provider-version.test.cjs test/command-resolution.test.cjs test/gauntlet-check-sandbox.test.cjs test/gauntlet-prompt-contract.test.cjs test/provider-model-catalog.test.cjs
       - name: Verify deterministic Gauntlet protocol
         run: npm run test:gauntlet
+      - name: Durable operator attention review
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-operator-review.test.cjs test/gauntlet-operator-priority.test.cjs test/gauntlet-candidate-handoff.test.cjs test/gauntlet-run-view.test.cjs test/gauntlet-run-drafts.test.cjs test/gauntlet-office-projection.test.cjs test/gauntlet-capacity-view.test.cjs
+      - name: Office rendering lifecycle
+        run: node --test test/office-visibility.test.cjs test/office-gl-recovery.test.cjs
+      - name: Repair and infrastructure retry budgets
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-repair-budget.test.cjs
+      - name: Exact Git review evidence and provider read-only access
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-git-evidence.test.cjs
+      - name: Scoped main-owned candidate commits
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-main-commit.test.cjs
+      - name: Responsive candidate Git cancellation and peer isolation
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-candidate-cancellation.test.cjs
+      - name: Real isolated control-helper transport
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-isolated-control.test.cjs
+      - name: Run-scoped Conductor authority and restart revocation
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-conductor-authority.test.cjs
+      - name: Isolated loop lifecycle, concurrency and held factory
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-isolated-runner.test.cjs test/gauntlet-schedule.test.cjs test/gauntlet-subscription-evidence.test.cjs test/gauntlet-session-budget.test.cjs test/gauntlet-isolated-skills.test.cjs test/gauntlet-skill-tree.test.cjs
+      - name: Native process and Conductor delivery journal
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-runtime-journal.test.cjs test/gauntlet-runtime-attention.test.cjs test/claude-activity.test.cjs
+      - name: Durable interrupted-work observations
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-preservation.test.cjs test/gauntlet-preparation.test.cjs test/gauntlet-prelaunch-orphan.test.cjs test/gauntlet-preparation-inspection.test.cjs
+      - name: Generic cleanup ownership and dirty-work retention
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-cleanup-ownership.test.cjs
+      - name: Unsafe reset refusal
+        run: node --test test/reset-policy.test.cjs
+      - name: Home-bound roster cache and stale-write isolation
+        run: node --test test/roster-home-scope.test.cjs test/roster.test.cjs
+      - name: Short hook endpoints and owned shutdown
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/hook-socket-lifecycle.test.cjs test/hive-hook-node.test.cjs test/hive-roster-injection.test.cjs test/final-quit.test.cjs
+      - name: Agent selection and terminal focus policy
+        run: node --test test/agent-view-policy.test.cjs test/electron-viewport.test.cjs
+      - name: Gauntlet restart ownership and renderer recovery
+        run: ELECTRON_RUN_AS_NODE=1 npx electron --test test/gauntlet-recovery-ownership.test.cjs test/gauntlet-renderer-recovery.test.cjs test/gauntlet-run-view.test.cjs test/gauntlet-control-drain.test.cjs test/gauntlet-check-cancellation.test.cjs test/gauntlet-attempt-branches.test.cjs
       - name: Verify hosted identity portal
         run: |
           npm --prefix apps/portal test -- --run
@@ -43,8 +99,12 @@ jobs:
           OPERATUS_NODE_TOKEN_PEPPER: ci-only-placeholder-that-is-not-used-at-runtime
       - name: Verify retained runtime seams
         run: npm run test:focused
+      - name: Office station reachability and failed-route safety
+        run: node --test test/office-station-paths.test.cjs test/office-arrival-ownership.test.cjs
       - name: Build Electron development assets
         run: npm run build
+      - name: Verify bundled offline fonts and distributed license
+        run: OPERATUS_VERIFY_FONT_BUILD=1 node --test test/bundled-fonts.test.cjs
       - name: Verify Operatus identity and redistributable assets
         run: npm run check:operatus-assets
       - name: Package unsigned macOS development app

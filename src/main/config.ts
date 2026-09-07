@@ -10,6 +10,7 @@ import {
   type AgentProvider
 } from '../shared/agentProvider';
 import { defaultMcpDefaults } from '../shared/mcpCatalog';
+import { DEFAULT_CONDUCTOR_PROVIDER, DEFAULT_CONDUCTOR_MODEL } from '../shared/agentProvider';
 import { expandTilde } from './fs';
 import type { IntegrationRecord } from '../shared/integrations';
 import type { BranchProfile } from '../shared/branchIdentity';
@@ -415,8 +416,8 @@ const DEFAULTS: HarnessConfig = {
   registeredRepos: [],
   autoMode: true,
   defaultCommand: 'claude',
-  godProvider: 'claude',
-  godModel: 'claude-opus-4-8',
+  godProvider: DEFAULT_CONDUCTOR_PROVIDER,
+  godModel: DEFAULT_CONDUCTOR_MODEL,
   // Global default model for every agent that hasn't picked one explicitly — wins
   // over the role-based tiers (modelForRole) in the spawn handler, so all agents
   // (incl. god) default to Fable 5. A per-agent model choice still overrides it.

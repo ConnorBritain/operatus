@@ -1,5 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import type { AgentProvider } from '../shared/agentProvider';
+import type { GauntletCapacity } from '../shared/gauntletSchedule';
+import type { SubscriptionPreflight, SubscriptionProvider } from '../shared/subscriptionPreflight';
 import type { HireManifest } from '../shared/hire';
 import type { BranchProfile } from '../shared/branchIdentity';
 import type {
@@ -17,6 +19,8 @@ import type {
   DepotSkill,
   GauntletRun,
   GauntletRunSnapshot,
+  PreparationInspection,
+  OperatorPriority,
   RoleSkillAssignment,
   SkillDepotSource,
   StartGauntletInput
@@ -793,12 +797,29 @@ const api = {
     ipcRenderer.invoke('history:search', query, limit),
 
   // ─── Operatus Gauntlet Runs (SQLite authority; transport-neutral snapshots) ─
+  subscriptionPreflight: (provider: SubscriptionProvider): Promise<SubscriptionPreflight> => ipcRenderer.invoke('subscription:preflight', provider),
   gauntletList: (): Promise<GauntletRun[]> => ipcRenderer.invoke('gauntlet:list'),
+  gauntletCapacity: (): Promise<GauntletCapacity> => ipcRenderer.invoke('gauntlet:capacity'),
+  gauntletConfigureCapacity: (revision: number, limit: number): Promise<GauntletCapacity> => ipcRenderer.invoke('gauntlet:capacity-configure', revision, limit),
+  gauntletReleaseCapacity: (runId: string, revision: number, reason: string): Promise<GauntletCapacity> => ipcRenderer.invoke('gauntlet:capacity-release', runId, revision, reason),
+  onGauntletCapacityChanged: (cb: (capacity: GauntletCapacity) => void): (() => void) => {
+    const listener = (_e: IpcRendererEvent, capacity: GauntletCapacity) => cb(capacity);
+    ipcRenderer.on('gauntlet:capacity-changed', listener);
+    return () => ipcRenderer.removeListener('gauntlet:capacity-changed', listener);
+  },
   gauntletGet: (runId: string): Promise<GauntletRunSnapshot> => ipcRenderer.invoke('gauntlet:get', runId),
+  gauntletSetPriority: (runId:string,revision:number,level:OperatorPriority['level'],note:string): Promise<GauntletRunSnapshot> =>
+    ipcRenderer.invoke('gauntlet:priority',runId,revision,level,note),
+  gauntletInspectPreparation: (runId: string, launchId: string): Promise<PreparationInspection> =>
+    ipcRenderer.invoke('gauntlet:inspect-preparation',runId,launchId),
   gauntletStart: (input: StartGauntletInput & { assignments?: RoleSkillAssignment[] }): Promise<GauntletRunSnapshot> =>
     ipcRenderer.invoke('gauntlet:start', input),
   gauntletCancel: (runId: string, reason?: string): Promise<GauntletRunSnapshot> =>
     ipcRenderer.invoke('gauntlet:cancel', runId, reason),
+  gauntletReviewAttention: (runId: string, version: number, reviewed: boolean, note: string, runtimeSequence = 0): Promise<GauntletRunSnapshot> =>
+    ipcRenderer.invoke('gauntlet:review-attention', runId, version, reviewed, note, runtimeSequence),
+  gauntletCandidateHandoff: (runId:string,version:number,sha:string,reviewed:boolean,note:string): Promise<GauntletRunSnapshot> =>
+    ipcRenderer.invoke('gauntlet:candidate-handoff',runId,version,sha,reviewed,note),
   onGauntletChanged: (cb: (snapshot: GauntletRunSnapshot) => void): (() => void) => {
     const listener = (_e: IpcRendererEvent, snapshot: GauntletRunSnapshot) => cb(snapshot);
     ipcRenderer.on('gauntlet:changed', listener);
@@ -859,6 +880,7 @@ const api = {
     cb: (rec: {
       id: string; name: string; provider?: string; cwd: string;
       command?: string; role?: string; worktreePath?: string;
+      lifecycleOwner?: 'gauntlet'; gauntletRunId?: string;
     }) => void
   ): (() => void) => {
     const listener = (_e: IpcRendererEvent, payload: Parameters<typeof cb>[0]) => cb(payload);
@@ -946,8 +968,8 @@ const api = {
   },
 
   // ─── Reset ─────────────────────────────────────────────────────────────────
-  /** Wipe all hive data + the memory palace, reset config, and relaunch the app
-   *  into onboarding. The process exits, so this promise never resolves. */
+  /** Currently rejects without changing state. Retained for compatibility;
+   * recoverable reset and verified shutdown are not yet available. */
   resetAll: (): Promise<void> => ipcRenderer.invoke('app:resetAll'),
 
   // ─── Token telemetry (real usage + est. cost from CC transcripts) ──────────
@@ -1305,14 +1327,20 @@ const api = {
   /** Read the roster file beside the hive. SYNCHRONOUS on purpose: the zustand
    *  store is created at module load, so an async read would arrive after the
    *  first render and the floor would flash empty. One blocking round trip at
-   *  boot. `null` = no file (or unreadable) — the caller then uses localStorage. */
+   *  boot. Legacy readers only; renderer restoration uses rosterBootSync to bind
+   *  any fallback cache to the same home. */
   rosterReadSync: (): RosterSnapshot | null => {
     try { return ipcRenderer.sendSync('roster:readSync') ?? null; } catch { return null; }
   },
+  /** Home identity and file projection observed together at main-owned boot. */
+  rosterBootSync: (): { home: string | null; roster: RosterSnapshot | null } => {
+    try { return ipcRenderer.sendSync('roster:bootSync') ?? { home: null, roster: null }; }
+    catch { return { home: null, roster: null }; }
+  },
   /** Mirror the roster to disk. Debounced by the caller; main keeps the previous
    *  contents as a backup and refuses a first write that would empty a full file. */
-  rosterWrite: (snap: RosterSnapshot): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
-    ipcRenderer.invoke('roster:write', snap),
+  rosterWrite: (snap: RosterSnapshot, expectedHome: string): Promise<{ ok: boolean; skipped?: string; error?: string }> =>
+    ipcRenderer.invoke('roster:write', snap, expectedHome),
 
   // ─── Auto-update (v0.3.4; full state model v0.3.7) ──────────────────────────
   /** Push channel from main's updater — every stage of the pipeline, so the

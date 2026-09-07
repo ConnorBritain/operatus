@@ -1,5 +1,11 @@
 # Milestone-one acceptance record
 
+> Current readiness qualification (2026-09-05): the real-provider Mac smoke
+> exposed startup, artifact-check isolation and worker-restoration failures.
+> The source-level implementation evidence below does not establish unattended
+> end-to-end acceptance. See the [readiness review](../reviews/2026-09-05-local-mac-readiness.md)
+> and [fix/release roadmap](../RELEASE_READINESS_ROADMAP.md) for the current gates.
+
 This record distinguishes shipped milestone-one behavior from deliberately
 sequenced roadmap work. It is an engineering receipt, not a claim that every
 future Operatus surface is already delivered.

@@ -24,6 +24,7 @@ const { spawn } = require('node:child_process');
 const loadTs = require('./load-ts.cjs');
 
 const { HiveManager } = loadTs('src/main/hive.ts');
+const { prepareHookSocketDirectory } = loadTs('src/main/hookSocket.ts');
 
 const POSIX = process.platform !== 'win32';
 const STRIPPED_PATH = '/usr/bin:/bin:/usr/sbin:/sbin';
@@ -144,8 +145,8 @@ test('a hook fires with NO node on PATH, and its payload reaches HIVE_SOCK', { s
   const hive = new HiveManager(() => home);
   await hive.ensureAgent({ id: 'a1', name: 'A', provider: 'claude', cwd: home });
 
-  const sock = path.join(home, 'hive', 'hooks.sock');
-  try { fs.unlinkSync(sock); } catch { /* not there */ }
+  const sock = hive.sockPath();
+  prepareHookSocketDirectory(sock);
 
   const received = [];
   const server = net.createServer((conn) => {

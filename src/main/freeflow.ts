@@ -28,6 +28,7 @@ const MAX_AUDIO_BYTES = 25 * 1024 * 1024;
 /** Don't let a hung request wedge the feature — bound the call. */
 const REQUEST_TIMEOUT_MS = 60_000;
 
+import { apiInferenceError } from '../shared/billingPolicy';
 export interface TranscribeOptions {
   /** User's Groq API key. Used only for the Authorization header; never logged. */
   apiKey: string;
@@ -54,6 +55,8 @@ export interface TranscribeResult {
  * success or `{ ok: false, error }` otherwise. Never throws; never logs the key.
  */
 export async function transcribeWithGroq(opts: TranscribeOptions): Promise<TranscribeResult> {
+  const billingError = apiInferenceError();
+  if (billingError) return { ok: false, error: billingError };
   if (!opts.apiKey) return { ok: false, error: 'missing Groq API key' };
 
   const bytes = toUint8Array(opts.audio);
